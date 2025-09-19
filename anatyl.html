@@ -4,8 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>School Dashboard — Multi Role (Student / Parent / Teacher / Admin)</title>
+  <link rel="stylesheet" href="ui.css">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <style>
     :root{
       --bg:#0f1724; --card:#0b1220; --muted:#94a3b8; --accent:#6ee7b7;
@@ -41,6 +43,7 @@
   </style>
 </head>
 <body>
+  <div class="bg-blob" aria-hidden="true"></div>
   <div class="container">
     <header class="card">
       <h1>Smart Attendance & Engagement Dashboard</h1>
@@ -172,403 +175,464 @@
     </footer>
   </div>
 
-<script>
-/*
-  Implementation notes:
-  - All charts use Chart.js (loaded from CDN).
-  - Heatmap is simulated using small divs colored by lateness ratio.
-  - Predictive projection uses linear extrapolation of attendance trend.
-  - Participation is marked by teacher button and shown as bar counts.
-  - Leaderboard uses generated sample data.
-  - Real biometrics not implemented; simulated fields used for Engagement Score.
-*/
+  <!-- Firebase SDKs (compat) and shared app scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
 
-// ---------- Utilities ----------
-function el(q) { return document.querySelector(q); }
-function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  <!-- Firestore-powered Announcements and Blog (public read) -->
+  <section class="container" style="max-width:1200px;margin:0 auto 24px auto;">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Announcements</h3>
+      <div id="annList" class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>Latest from the Blog</h3>
+      <div id="blogList" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px"></div>
+    </div>
+  </section>
 
-// ---------- State ----------
-let state = {
-  role:null, student:null, roll:null,
-  timeframe:'daily',
-  attendanceSeries:[], // array of numbers 0/1 or percentage for ndays
-  participationCounts:{active:0,passive:0,absent:0},
-  subjects: {Math:92,Science:88,English:85,History:78,PE:96},
-  leaderboard: []
-};
+  <script>
+    /*
+      Implementation notes:
+      - All charts use Chart.js (loaded from CDN).
+      - Heatmap is simulated using small divs colored by lateness ratio.
+      - Predictive projection uses linear extrapolation of attendance trend.
+      - Participation is marked by teacher button and shown as bar counts.
+      - Leaderboard uses generated sample data.
+      - Real biometrics not implemented; simulated fields used for Engagement Score.
+    */
 
-// ---------- Role selection & forms ----------
-document.querySelectorAll('.role-btn').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    const role = b.dataset.role;
-    state.role = role;
-    showFormForRole(role);
-  });
-});
+    // ---------- Utilities ----------
+    function el(q) { return document.querySelector(q); }
+    function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+    function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 
-function showFormForRole(role){
-  const formArea = el('#formArea'); formArea.style.display='block';
-  formArea.innerHTML = '';
-  const card = document.createElement('div');
-  card.innerHTML = `<h3>Selected role: ${role.toUpperCase()}</h3>`;
-  if(role === 'student'){
-    card.innerHTML += `
-      <label>Naam</label><input id="f_name" placeholder="Student naam" />
-      <label>Roll No</label><input id="f_roll" placeholder="Roll no" />
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" id="f_submit">Open Student Dashboard</button>
-        <button id="f_cancel">Cancel</button>
-      </div>`;
-  } else if(role === 'parent'){
-    card.innerHTML += `
-      <label>Child's Name</label><input id="f_name" placeholder="Bache ka naam" />
-      <label>Roll No</label><input id="f_roll" placeholder="Roll no" />
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" id="f_submit">Open Parent Dashboard</button>
-        <button id="f_cancel">Cancel</button>
-      </div>`;
-  } else if(role === 'teacher'){
-    card.innerHTML += `
-      <label>Course</label><input id="f_course" placeholder="Course name / id" />
-      <label>Student Roll (to view)</label><input id="f_roll" placeholder="Roll no" />
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" id="f_submit">Open Teacher View</button>
-        <button id="f_cancel">Cancel</button>
-      </div>`;
-  } else if(role === 'admin'){
-    card.innerHTML += `
-      <label>Course</label><input id="f_course" placeholder="Course name / id" />
-      <label>Student Roll (to view)</label><input id="f_roll" placeholder="Roll no" />
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="primary" id="f_submit">Open Admin View</button>
-        <button id="f_cancel">Cancel</button>
-      </div>`;
-  }
-  formArea.appendChild(card);
-  document.getElementById('f_cancel').onclick = ()=> { formArea.style.display='none'; };
-  document.getElementById('f_submit').onclick = ()=>{
-    // collect fields
-    const name = (el('#f_name') ? el('#f_name').value : '') || 'Student X';
-    const roll = (el('#f_roll') ? el('#f_roll').value : '') || ('R'+rand(100,999));
-    state.student = name; state.roll = roll;
-    // For teacher/admin, course value not strongly used here but could be attached.
-    initDashboardForRole(state.role);
-    formArea.style.display='none';
-  };
-}
+    // ---------- State ----------
+    let state = {
+      role:null, student:null, roll:null,
+      timeframe:'daily',
+      attendanceSeries:[], // array of numbers 0/1 or percentage for ndays
+      participationCounts:{active:0,passive:0,absent:0},
+      subjects: {Math:92,Science:88,English:85,History:78,PE:96},
+      leaderboard: []
+    };
 
-// ---------- Dashboard initialization ----------
-let lineChart, partChart, subjectChart, predictChart;
+    // ---------- Role selection & forms ----------
+    document.querySelectorAll('.role-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const role = b.dataset.role;
+        state.role = role;
+        showFormForRole(role);
+      });
+    });
 
-function initDashboardForRole(role){
-  el('#dashboardArea').style.display = 'block';
-  el('#dashTitle').innerText = `${role.charAt(0).toUpperCase()+role.slice(1)} Dashboard`;
-  el('#studentMeta').innerText = `Name: ${state.student} • Roll: ${state.roll}`;
-  // populate inputs
-  el('#inputName').value = state.student;
-  el('#inputRoll').value = state.roll;
-  // simulate attendance series (0/1) for 30 days by default
-  generateDemoData();
-  renderAll();
-  // show/hide some controls depending on role
-  if(role==='teacher'){ el('#participationSelect').style.display='inline-block'; el('#markParticipation').style.display='inline-block'; }
-  else { el('#participationSelect').style.display='inline-block'; el('#markParticipation').style.display='inline-block'; }
-}
-
-// ---------- Demo data generation ----------
-function generateDemoData(n=30){
-  state.attendanceSeries = [];
-  for(let i=0;i<n;i++){
-    // simulate 0 or 1 with some lateness ratio metric in parallel (we'll store lateness ratio separately)
-    const present = (Math.random() < 0.85) ? 1 : 0; // 85% chance present
-    const onTime = present ? (Math.random()*0.3 + 0.7) : 0; // if present, on-time fraction that day
-    state.attendanceSeries.push({present, onTime}); // onTime between 0.7-1 means mostly on time
-  }
-  // participation counts
-  state.participationCounts = {active: rand(6,12), passive: rand(4,10), absent: rand(1,4)};
-  // subjects random
-  state.subjects = {Math:rand(70,98),Science:rand(60,95),English:rand(65,96),History:rand(50,92),PE:rand(80,100)};
-  // leaderboard
-  state.leaderboard = [];
-  for(let i=0;i<12;i++){
-    state.leaderboard.push({name:`Student ${i+1}`,roll:`R${100+i}`,pct:rand(60,100)});
-  }
-  // ensure our student is somewhere near top sometimes
-  state.leaderboard.push({name: state.student, roll: state.roll, pct: Math.round(calcAttendancePct())});
-  state.leaderboard.sort((a,b)=>b.pct-a.pct);
-}
-
-// ---------- Calculations ----------
-function calcAttendancePct(){
-  const total = state.attendanceSeries.length;
-  if(total===0) return 0;
-  const attended = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
-  return Math.round((attended/total)*100);
-}
-function calcConsistency(){
-  const total = state.attendanceSeries.length;
-  const attended = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
-  return Math.round((attended/total)*100);
-}
-function calcOnTimePct(){
-  const total = state.attendanceSeries.length;
-  if(total===0) return 0;
-  const onTimes = state.attendanceSeries.reduce((s,d)=> s + (d.present? d.onTime : 0), 0);
-  // convert to percentage of present-days that were on-time average
-  const presentCount = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0) || 1;
-  return Math.round((onTimes / presentCount)*100);
-}
-function calcEngagement(voice,fp,onTimePct){
-  // Example weights: 40% attendance, 30% on-time, 30% interaction (we map voice/fp to interaction)
-  const attendance = calcAttendancePct();
-  const interaction = Math.round((voice + fp)/2);
-  const engagement = Math.round(0.4*attendance + 0.3*onTimePct + 0.3*interaction);
-  return clamp(engagement,0,100);
-}
-
-// ---------- Rendering ----------
-function renderAll(){
-  // top summary
-  const attPct = calcAttendancePct();
-  const total = state.attendanceSeries.length;
-  const present = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
-  el('#attendancePct').innerText = attPct + '%';
-  el('#attendanceBreak').innerText = `${present} / ${total} classes`;
-  const consistency = calcConsistency();
-  el('#consistency').innerText = consistency + '%';
-  const onTime = calcOnTimePct();
-  el('#engagementScore').innerText = calcEngagement(Number(el('#inputVoice').value||92), Number(el('#inputFP').value||95), onTime) + '%';
-
-  // warning
-  if(attPct < 75){
-    el('#attendancePct').style.color = 'var(--danger)';
-    if(!el('#attendancePct').nextElementSibling.classList.contains('warning')) {
-      // show inline warning text (kept small)
-      // but don't create multiple
+    function showFormForRole(role){
+      const formArea = el('#formArea'); formArea.style.display='block';
+      formArea.innerHTML = '';
+      const card = document.createElement('div');
+      card.innerHTML = `<h3>Selected role: ${role.toUpperCase()}</h3>`;
+      if(role === 'student'){
+        card.innerHTML += `
+          <label>Naam</label><input id="f_name" placeholder="Student naam" />
+          <label>Roll No</label><input id="f_roll" placeholder="Roll no" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="primary" id="f_submit">Open Student Dashboard</button>
+            <button id="f_cancel">Cancel</button>
+          </div>`;
+      } else if(role === 'parent'){
+        card.innerHTML += `
+          <label>Child's Name</label><input id="f_name" placeholder="Bache ka naam" />
+          <label>Roll No</label><input id="f_roll" placeholder="Roll no" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="primary" id="f_submit">Open Parent Dashboard</button>
+            <button id="f_cancel">Cancel</button>
+          </div>`;
+      } else if(role === 'teacher'){
+        card.innerHTML += `
+          <label>Course</label><input id="f_course" placeholder="Course name / id" />
+          <label>Student Roll (to view)</label><input id="f_roll" placeholder="Roll no" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="primary" id="f_submit">Open Teacher View</button>
+            <button id="f_cancel">Cancel</button>
+          </div>`;
+      } else if(role === 'admin'){
+        card.innerHTML += `
+          <label>Course</label><input id="f_course" placeholder="Course name / id" />
+          <label>Student Roll (to view)</label><input id="f_roll" placeholder="Roll no" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="primary" id="f_submit">Open Admin View</button>
+            <button id="f_cancel">Cancel</button>
+          </div>`;
+      }
+      formArea.appendChild(card);
+      document.getElementById('f_cancel').onclick = ()=> { formArea.style.display='none'; };
+      document.getElementById('f_submit').onclick = ()=>{
+        // collect fields
+        const name = (el('#f_name') ? el('#f_name').value : '') || 'Student X';
+        const roll = (el('#f_roll') ? el('#f_roll').value : '') || ('R'+rand(100,999));
+        state.student = name; state.roll = roll;
+        // For teacher/admin, course value not strongly used here but could be attached.
+        initDashboardForRole(state.role);
+        formArea.style.display='none';
+      };
     }
-  } else {
-    el('#attendancePct').style.color = '';
-  }
 
-  // charts
-  renderLineChart();
-  renderParticipationChart();
-  renderSubjectChart();
-  renderHeatmap();
-  renderLeaderboard();
-  renderPredictive();
-  renderBadges();
-}
+    // ---------- Dashboard initialization ----------
+    let lineChart, partChart, subjectChart, predictChart;
 
-function renderLineChart(){
-  const tf = el('#tfSelect').value;
-  el('#tfLabel').innerText = tf.charAt(0).toUpperCase()+tf.slice(1);
-  let labels=[], data=[];
-  if(tf==='daily'){
-    labels = state.attendanceSeries.map((_,i)=>`D${i+1}`);
-    data = state.attendanceSeries.map(d => d.present*100);
-  } else if(tf==='weekly'){
-    // aggregate by weeks (group every 7)
-    const weeks = Math.ceil(state.attendanceSeries.length/7);
-    for(let w=0;w<weeks;w++){
-      const slice = state.attendanceSeries.slice(w*7, (w+1)*7);
-      const pct = Math.round( (slice.reduce((s,d)=>s+(d.present?1:0),0) / (slice.length || 1)) * 100 );
-      labels.push('W'+(w+1)); data.push(pct);
+    function initDashboardForRole(role){
+      el('#dashboardArea').style.display = 'block';
+      el('#dashTitle').innerText = `${role.charAt(0).toUpperCase()+role.slice(1)} Dashboard`;
+      el('#studentMeta').innerText = `Name: ${state.student} • Roll: ${state.roll}`;
+      // populate inputs
+      el('#inputName').value = state.student;
+      el('#inputRoll').value = state.roll;
+      // simulate attendance series (0/1) for 30 days by default
+      generateDemoData();
+      renderAll();
+      // show/hide some controls depending on role
+      if(role==='teacher'){ el('#participationSelect').style.display='inline-block'; el('#markParticipation').style.display='inline-block'; }
+      else { el('#participationSelect').style.display='inline-block'; el('#markParticipation').style.display='inline-block'; }
     }
-  } else {
-    // monthly (group by 30)
-    const months = Math.ceil(state.attendanceSeries.length/30);
-    for(let m=0;m<months;m++){
-      const slice = state.attendanceSeries.slice(m*30, (m+1)*30);
-      const pct = Math.round( (slice.reduce((s,d)=>s+(d.present?1:0),0) / (slice.length || 1)) * 100 );
-      labels.push('M'+(m+1)); data.push(pct);
+
+    // ---------- Demo data generation ----------
+    function generateDemoData(n=30){
+      state.attendanceSeries = [];
+      for(let i=0;i<n;i++){
+        // simulate 0 or 1 with some lateness ratio metric in parallel (we'll store lateness ratio separately)
+        const present = (Math.random() < 0.85) ? 1 : 0; // 85% chance present
+        const onTime = present ? (Math.random()*0.3 + 0.7) : 0; // if present, on-time fraction that day
+        state.attendanceSeries.push({present, onTime}); // onTime between 0.7-1 means mostly on time
+      }
+      // participation counts
+      state.participationCounts = {active: rand(6,12), passive: rand(4,10), absent: rand(1,4)};
+      // subjects random
+      state.subjects = {Math:rand(70,98),Science:rand(60,95),English:rand(65,96),History:rand(50,92),PE:rand(80,100)};
+      // leaderboard
+      state.leaderboard = [];
+      for(let i=0;i<12;i++){
+        state.leaderboard.push({name:`Student ${i+1}`,roll:`R${100+i}`,pct:rand(60,100)});
+      }
+      // ensure our student is somewhere near top sometimes
+      state.leaderboard.push({name: state.student, roll: state.roll, pct: Math.round(calcAttendancePct())});
+      state.leaderboard.sort((a,b)=>b.pct-a.pct);
     }
-  }
 
-  if(lineChart) lineChart.destroy();
-  const ctx = document.getElementById('lineChart').getContext('2d');
-  lineChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets: [{ label: 'Attendance %', data, fill:true, tension:0.3, borderWidth:2, pointRadius:3 }]},
-    options: { plugins:{legend:{display:false}} , scales:{ y:{ beginAtZero:true, max:100}}}
-  });
-}
-
-function renderParticipationChart(){
-  const data = [
-    state.participationCounts.active,
-    state.participationCounts.passive,
-    state.participationCounts.absent
-  ];
-  if(partChart) partChart.destroy();
-  const ctx = document.getElementById('partChart').getContext('2d');
-  partChart = new Chart(ctx, {
-    type:'bar',
-    data:{ labels:['Active','Passive','Absent'], datasets:[{ label:'Count', data, borderRadius:6, barThickness:28 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-  });
-}
-
-function renderSubjectChart(){
-  const labels = Object.keys(state.subjects);
-  const data = Object.values(state.subjects);
-  if(subjectChart) subjectChart.destroy();
-  const ctx = document.getElementById('subjectChart').getContext('2d');
-  subjectChart = new Chart(ctx, {
-    type:'pie',
-    data:{ labels, datasets:[{ data }] },
-    options:{ plugins:{legend:{position:'bottom'}} }
-  });
-}
-
-function renderHeatmap(){
-  const hm = el('#heatmap'); hm.innerHTML = '';
-  // We'll show last 14 days as 14 columns x 2 rows maybe => 28 cells
-  const cells = 14*1; // single row over 14 days
-  const arr = state.attendanceSeries.slice(-cells);
-  // scale color by lateness: if present and onTime close to 1 => light/green; if present but onTime low => dark; if absent => very dark
-  arr.forEach(d=>{
-    const cell = document.createElement('div'); cell.className='hm-cell';
-    let color='#072034';
-    if(!d.present) color='#0b1020';
-    else {
-      // map d.onTime (0..1) to color ramp
-      const v = d.onTime;
-      if(v>0.9) color='#6ee7b7'; // good
-      else if(v>0.8) color='#2f8fb0';
-      else if(v>0.7) color='#1b5b78';
-      else color='#0f3a53';
+    // ---------- Calculations ----------
+    function calcAttendancePct(){
+      const total = state.attendanceSeries.length;
+      if(total===0) return 0;
+      const attended = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
+      return Math.round((attended/total)*100);
     }
-    cell.style.background = color;
-    cell.title = d.present ? `Present — onTime ${(d.onTime*100).toFixed(0)}%` : 'Absent';
-    hm.appendChild(cell);
-  });
-  // fill blanks if less than cells
-  const missing = cells - arr.length;
-  for(let i=0;i<missing;i++){ const c=document.createElement('div'); c.className='hm-cell'; c.style.background='#072034'; hm.appendChild(c); }
-}
+    function calcConsistency(){
+      const total = state.attendanceSeries.length;
+      const attended = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
+      return Math.round((attended/total)*100);
+    }
+    function calcOnTimePct(){
+      const total = state.attendanceSeries.length;
+      if(total===0) return 0;
+      const onTimes = state.attendanceSeries.reduce((s,d)=> s + (d.present? d.onTime : 0), 0);
+      // convert to percentage of present-days that were on-time average
+      const presentCount = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0) || 1;
+      return Math.round((onTimes / presentCount)*100);
+    }
+    function calcEngagement(voice,fp,onTimePct){
+      // Example weights: 40% attendance, 30% on-time, 30% interaction (we map voice/fp to interaction)
+      const attendance = calcAttendancePct();
+      const interaction = Math.round((voice + fp)/2);
+      const engagement = Math.round(0.4*attendance + 0.3*onTimePct + 0.3*interaction);
+      return clamp(engagement,0,100);
+    }
 
-function renderLeaderboard(){
-  const elb = el('#leaderboardList'); elb.innerHTML='';
-  // top 10 entries
-  const top = state.leaderboard.slice(0,10);
-  top.forEach((s,idx)=>{
-    const div = document.createElement('div');
-    div.style.padding='6px'; div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
-    div.innerHTML = `<div><strong>#${idx+1}</strong> ${s.name} <div class="small">(${s.roll})</div></div><div style="text-align:right"><strong>${s.pct}%</strong></div>`;
-    elb.appendChild(div);
-  });
-}
+    // ---------- Rendering ----------
+    function renderAll(){
+      // top summary
+      const attPct = calcAttendancePct();
+      const total = state.attendanceSeries.length;
+      const present = state.attendanceSeries.reduce((s,d)=>s + (d.present?1:0),0);
+      el('#attendancePct').innerText = attPct + '%';
+      el('#attendanceBreak').innerText = `${present} / ${total} classes`;
+      const consistency = calcConsistency();
+      el('#consistency').innerText = consistency + '%';
+      const onTime = calcOnTimePct();
+      el('#engagementScore').innerText = calcEngagement(Number(el('#inputVoice').value||92), Number(el('#inputFP').value||95), onTime) + '%';
 
-// ---------- Predictive projection ----------
-function renderPredictive(){
-  // Use linear trend of attendance percentages over time to project final %
-  const series = state.attendanceSeries.map(d=> d.present?1:0);
-  if(series.length<3){
-    // not enough data
-    if(predictChart) predictChart.destroy();
-    const ctx = document.getElementById('predictChart').getContext('2d');
-    predictChart = new Chart(ctx, { type:'line', data:{labels:['No data'], datasets:[{data:[0]}]}, options:{plugins:{legend:{display:false}}} });
-    el('#projectionText').innerText = 'Not enough data to project.';
-    return;
-  }
-  // simple linear regression y ~ x where y is cumulative attendance pct at each day
-  const cum = []; let sum=0;
-  for(let i=0;i<series.length;i++){ sum += series[i]; cum.push( (sum/(i+1))*100 ); }
-  const xs = cum.map((_,i)=>i+1);
-  // compute slope (least squares)
-  const n = xs.length;
-  const meanX = xs.reduce((a,b)=>a+b,0)/n;
-  const meanY = cum.reduce((a,b)=>a+b,0)/n;
-  let num=0, den=0;
-  for(let i=0;i<n;i++){ num += (xs[i]-meanX)*(cum[i]-meanY); den += (xs[i]-meanX)*(xs[i]-meanX); }
-  const slope = den===0 ? 0 : num/den;
-  const intercept = meanY - slope*meanX;
-  // Project to final classes (assume total classes will be 60)
-  const futureDays = 60;
-  const projectedY = slope*futureDays + intercept;
-  const finalPct = clamp(Math.round(projectedY), 0, 100);
-  // render line with continuation
-  const labels = xs.concat([ '...','Final' ]);
-  const data = cum.concat([ null, finalPct ]);
-  if(predictChart) predictChart.destroy();
-  const ctx = document.getElementById('predictChart').getContext('2d');
-  predictChart = new Chart(ctx, {
-    type:'line',
-    data:{ labels, datasets:[{ label:'Projected attendance %', data, spanGaps:true, tension:0.3, pointRadius:3 }] },
-    options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:100 }} }
-  });
-  el('#projectionText').innerText = `Projection (if current trend continues): ~ ${finalPct}% attendance at class ${futureDays}.`;
-}
+      // warning
+      if(attPct < 75){
+        el('#attendancePct').style.color = 'var(--danger)';
+        if(!el('#attendancePct').nextElementSibling.classList.contains('warning')) {
+          // show inline warning text (kept small)
+          // but don't create multiple
+        }
+      } else {
+        el('#attendancePct').style.color = '';
+      }
 
-// ---------- Badges & Streaks ----------
-function renderBadges(){
-  const area = el('#badgesArea'); area.innerHTML='';
-  const p = calcAttendancePct();
-  let badge = 'Bronze', color='var(--bronze)';
-  if(p>=95) { badge='Gold'; color='var(--gold)'; }
-  else if(p>=85) { badge='Silver'; color='var(--silver)'; }
-  const div = document.createElement('div'); div.className='badge'; div.style.background=color; div.style.color='#000';
-  div.innerText = `${badge} — ${p}%`;
-  area.appendChild(div);
+      // charts
+      renderLineChart();
+      renderParticipationChart();
+      renderSubjectChart();
+      renderHeatmap();
+      renderLeaderboard();
+      renderPredictive();
+      renderBadges();
+    }
 
-  // streak (continuous present days at end)
-  let streak = 0;
-  for(let i=state.attendanceSeries.length-1;i>=0;i--){
-    if(state.attendanceSeries[i].present) streak++;
-    else break;
-  }
-  const sdiv = document.createElement('div'); sdiv.style.marginTop='8px'; sdiv.className='small';
-  sdiv.innerHTML = `Streak (continuous present days): <strong>${streak}</strong>`;
-  area.appendChild(sdiv);
+    function renderLineChart(){
+      const tf = el('#tfSelect').value;
+      el('#tfLabel').innerText = tf.charAt(0).toUpperCase()+tf.slice(1);
+      let labels=[], data=[];
+      if(tf==='daily'){
+        labels = state.attendanceSeries.map((_,i)=>`D${i+1}`);
+        data = state.attendanceSeries.map(d => d.present*100);
+      } else if(tf==='weekly'){
+        // aggregate by weeks (group every 7)
+        const weeks = Math.ceil(state.attendanceSeries.length/7);
+        for(let w=0;w<weeks;w++){
+          const slice = state.attendanceSeries.slice(w*7, (w+1)*7);
+          const pct = Math.round( (slice.reduce((s,d)=>s+(d.present?1:0),0) / (slice.length || 1)) * 100 );
+          labels.push('W'+(w+1)); data.push(pct);
+        }
+      } else {
+        // monthly (group by 30)
+        const months = Math.ceil(state.attendanceSeries.length/30);
+        for(let m=0;m<months;m++){
+          const slice = state.attendanceSeries.slice(m*30, (m+1)*30);
+          const pct = Math.round( (slice.reduce((s,d)=>s+(d.present?1:0),0) / (slice.length || 1)) * 100 );
+          labels.push('M'+(m+1)); data.push(pct);
+        }
+      }
 
-  // milestone badges
-  const milestones = [];
-  if(streak>=30) milestones.push('Perfect Month');
-  if(p===100) milestones.push('Perfect Attendance');
-  if(calcOnTimePct()>=95) milestones.push('On-time Champion');
-  if(milestones.length){
-    const mdiv = document.createElement('div'); mdiv.style.marginTop='8px'; mdiv.innerHTML = `<div class="small">Milestones:</div><div style="margin-top:6px">${milestones.map(m=>`<span class="badge" style="margin-right:6px">${m}</span>`).join('')}</div>`;
-    area.appendChild(mdiv);
-  }
-}
+      if(lineChart) lineChart.destroy();
+      const ctx = document.getElementById('lineChart').getContext('2d');
+      lineChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Attendance %', data, fill:true, tension:0.3, borderWidth:2, pointRadius:3 }]},
+        options: { plugins:{legend:{display:false}} , scales:{ y:{ beginAtZero:true, max:100}}}
+      });
+    }
 
-// ---------- Event bindings ----------
-el('#tfSelect').addEventListener('change', ()=>{ renderAll(); });
-el('#markParticipation').addEventListener('click', ()=>{
-  const v = el('#participationSelect').value;
-  state.participationCounts[v] = (state.participationCounts[v] || 0) + 1;
-  renderParticipationChart();
-});
-el('#applyBtn').addEventListener('click', ()=>{
-  // take inputs and recalc
-  state.student = el('#inputName').value || state.student;
-  state.roll = el('#inputRoll').value || state.roll;
-  const total = Number(el('#inputTotal').value || 30);
-  const attended = Number(el('#inputAttended').value || Math.round(total*0.8));
-  // rebuild attendanceSeries to match
-  const series=[];
-  for(let i=0;i<total;i++){
-    const present = (i < attended) ? 1 : 0; // simple: first 'attended' days present
-    const onTime = present ? (Number(el('#inputOnTime').value||80)/100) : 0;
-    series.push({present,onTime});
-  }
-  state.attendanceSeries = series;
-  // update subjects maybe slightly adjust
-  // voice & fp used for engagement score displayed
-  renderAll();
-  el('#dashTitle').innerText = `Student Dashboard — ${state.student}`;
-  el('#studentMeta').innerText = `Name: ${state.student} • Roll: ${state.roll}`;
-});
-el('#resetBtn').addEventListener('click', ()=>{ generateDemoData(); renderAll(); });
+    function renderParticipationChart(){
+      const data = [
+        state.participationCounts.active,
+        state.participationCounts.passive,
+        state.participationCounts.absent
+      ];
+      if(partChart) partChart.destroy();
+      const ctx = document.getElementById('partChart').getContext('2d');
+      partChart = new Chart(ctx, {
+        type:'bar',
+        data:{ labels:['Active','Passive','Absent'], datasets:[{ label:'Count', data, borderRadius:6, barThickness:28 }]},
+        options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+      });
+    }
 
-// initial demo when page first loaded: none until role chosen
-// But to make testing easy, let's auto-select Student for first view after user chooses
-// (we only run when user clicks a role)
+    function renderSubjectChart(){
+      const labels = Object.keys(state.subjects);
+      const data = Object.values(state.subjects);
+      if(subjectChart) subjectChart.destroy();
+      const ctx = document.getElementById('subjectChart').getContext('2d');
+      subjectChart = new Chart(ctx, {
+        type:'pie',
+        data:{ labels, datasets:[{ data }] },
+        options:{ plugins:{legend:{position:'bottom'}} }
+      });
+    }
 
-/* End of script */
-</script>
+    function renderHeatmap(){
+      const hm = el('#heatmap'); hm.innerHTML = '';
+      // We'll show last 14 days as 14 columns x 2 rows maybe => 28 cells
+      const cells = 14*1; // single row over 14 days
+      const arr = state.attendanceSeries.slice(-cells);
+      // scale color by lateness: if present and onTime close to 1 => light/green; if present but onTime low => dark; if absent => very dark
+      arr.forEach(d=>{
+        const cell = document.createElement('div'); cell.className='hm-cell';
+        let color='#072034';
+        if(!d.present) color='#0b1020';
+        else {
+          // map d.onTime (0..1) to color ramp
+          const v = d.onTime;
+          if(v>0.9) color='#6ee7b7'; // good
+          else if(v>0.8) color='#2f8fb0';
+          else if(v>0.7) color='#1b5b78';
+          else color='#0f3a53';
+        }
+        cell.style.background = color;
+        cell.title = d.present ? `Present — onTime ${(d.onTime*100).toFixed(0)}%` : 'Absent';
+        hm.appendChild(cell);
+      });
+      // fill blanks if less than cells
+      const missing = cells - arr.length;
+      for(let i=0;i<missing;i++){ const c=document.createElement('div'); c.className='hm-cell'; c.style.background='#072034'; hm.appendChild(c); }
+    }
+
+    function renderLeaderboard(){
+      const elb = el('#leaderboardList'); elb.innerHTML='';
+      // top 10 entries
+      const top = state.leaderboard.slice(0,10);
+      top.forEach((s,idx)=>{
+        const div = document.createElement('div');
+        div.style.padding='6px'; div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
+        div.innerHTML = `<div><strong>#${idx+1}</strong> ${s.name} <div class="small">(${s.roll})</div></div><div style="text-align:right"><strong>${s.pct}%</strong></div>`;
+        elb.appendChild(div);
+      });
+    }
+
+    // ---------- Predictive projection ----------
+    function renderPredictive(){
+      // Use linear trend of attendance percentages over time to project final %
+      const series = state.attendanceSeries.map(d=> d.present?1:0);
+      if(series.length<3){
+        // not enough data
+        if(predictChart) predictChart.destroy();
+        const ctx = document.getElementById('predictChart').getContext('2d');
+        predictChart = new Chart(ctx, { type:'line', data:{labels:['No data'], datasets:[{data:[0]}]}, options:{plugins:{legend:{display:false}}} });
+        el('#projectionText').innerText = 'Not enough data to project.';
+        return;
+      }
+      // simple linear regression y ~ x where y is cumulative attendance pct at each day
+      const cum = []; let sum=0;
+      for(let i=0;i<series.length;i++){ sum += series[i]; cum.push( (sum/(i+1))*100 ); }
+      const xs = cum.map((_,i)=>i+1);
+      // compute slope (least squares)
+      const n = xs.length;
+      const meanX = xs.reduce((a,b)=>a+b,0)/n;
+      const meanY = cum.reduce((a,b)=>a+b,0)/n;
+      let num=0, den=0;
+      for(let i=0;i<n;i++){ num += (xs[i]-meanX)*(cum[i]-meanY); den += (xs[i]-meanX)*(xs[i]-meanX); }
+      const slope = den===0 ? 0 : num/den;
+      const intercept = meanY - slope*meanX;
+      // Project to final classes (assume total classes will be 60)
+      const futureDays = 60;
+      const projectedY = slope*futureDays + intercept;
+      const finalPct = clamp(Math.round(projectedY), 0, 100);
+      // render line with continuation
+      const labels = xs.concat([ '...','Final' ]);
+      const data = cum.concat([ null, finalPct ]);
+      if(predictChart) predictChart.destroy();
+      const ctx = document.getElementById('predictChart').getContext('2d');
+      predictChart = new Chart(ctx, {
+        type:'line',
+        data:{ labels, datasets:[{ label:'Projected attendance %', data, spanGaps:true, tension:0.3, pointRadius:3 }] },
+        options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:100 }} }
+      });
+      el('#projectionText').innerText = `Projection (if current trend continues): ~ ${finalPct}% attendance at class ${futureDays}.`;
+    }
+
+    // ---------- Badges & Streaks ----------
+    function renderBadges(){
+      const area = el('#badgesArea'); area.innerHTML='';
+      const p = calcAttendancePct();
+      let badge = 'Bronze', color='var(--bronze)';
+      if(p>=95) { badge='Gold'; color='var(--gold)'; }
+      else if(p>=85) { badge='Silver'; color='var(--silver)'; }
+      const div = document.createElement('div'); div.className='badge'; div.style.background=color; div.style.color='#000';
+      div.innerText = `${badge} — ${p}%`;
+      area.appendChild(div);
+
+      // streak (continuous present days at end)
+      let streak = 0;
+      for(let i=state.attendanceSeries.length-1;i>=0;i--){
+        if(state.attendanceSeries[i].present) streak++;
+        else break;
+      }
+      const sdiv = document.createElement('div'); sdiv.style.marginTop='8px'; sdiv.className='small';
+      sdiv.innerHTML = `Streak (continuous present days): <strong>${streak}</strong>`;
+      area.appendChild(sdiv);
+
+      // milestone badges
+      const milestones = [];
+      if(streak>=30) milestones.push('Perfect Month');
+      if(p===100) milestones.push('Perfect Attendance');
+      if(calcOnTimePct()>=95) milestones.push('On-time Champion');
+      if(milestones.length){
+        const mdiv = document.createElement('div'); mdiv.style.marginTop='8px'; mdiv.innerHTML = `<div class="small">Milestones:</div><div style="margin-top:6px">${milestones.map(m=>`<span class="badge" style="margin-right:6px">${m}</span>`).join('')}</div>`;
+        area.appendChild(mdiv);
+      }
+    }
+
+    // ---------- Event bindings ----------
+    el('#tfSelect').addEventListener('change', ()=>{ renderAll(); });
+    el('#markParticipation').addEventListener('click', ()=>{
+      const v = el('#participationSelect').value;
+      state.participationCounts[v] = (state.participationCounts[v] || 0) + 1;
+      renderParticipationChart();
+    });
+    el('#applyBtn').addEventListener('click', ()=>{
+      // take inputs and recalc
+      state.student = el('#inputName').value || state.student;
+      state.roll = el('#inputRoll').value || state.roll;
+      const total = Number(el('#inputTotal').value || 30);
+      const attended = Number(el('#inputAttended').value || Math.round(total*0.8));
+      // rebuild attendanceSeries to match
+      const series=[];
+      for(let i=0;i<total;i++){
+        const present = (i < attended) ? 1 : 0; // simple: first 'attended' days present
+        const onTime = present ? (Number(el('#inputOnTime').value||80)/100) : 0;
+        series.push({present,onTime});
+      }
+      state.attendanceSeries = series;
+      // update subjects maybe slightly adjust
+      // voice & fp used for engagement score displayed
+      renderAll();
+      el('#dashTitle').innerText = `Student Dashboard — ${state.student}`;
+      el('#studentMeta').innerText = `Name: ${state.student} • Roll: ${state.roll}`;
+    });
+    el('#resetBtn').addEventListener('click', ()=>{ generateDemoData(); renderAll(); });
+
+    // initial demo when page first loaded: none until role chosen
+    // But to make testing easy, let's auto-select Student for first view after user chooses
+    // (we only run when user clicks a role)
+
+    /* End of script */
+  </script>
+
+  <script>
+    // Load announcements and blog (public reads)
+    async function loadAn(){
+      try{
+        if(!window.db) return;
+        const wrap = document.getElementById('annList'); if(!wrap) return;
+        const snap = await db.collection('public_announcements').orderBy('createdAt','desc').limit(6).get();
+        wrap.innerHTML = '';
+        if (snap.empty) { wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const el = document.createElement('div'); el.className='card';
+          el.innerHTML = `<h4 style="margin-bottom:6px">${d.title||'Untitled'}</h4><p class="small">${d.message||''}</p>`;
+          wrap.appendChild(el);
+        });
+      }catch(e){ /* silent */ }
+    }
+    async function loadBlog(){
+      try{
+        if(!window.db) return;
+        const grid = document.getElementById('blogList'); if(!grid) return;
+        const snap = await db.collection('blog_posts').orderBy('createdAt','desc').limit(6).get();
+        grid.innerHTML = '';
+        if (snap.empty) { grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const el = document.createElement('div'); el.className='card';
+          const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
+          el.innerHTML = `
+            <div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px">
+              <img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95">
+            </div>
+            <h4 style="margin-bottom:6px">${d.title||'New Post'}</h4>
+            <p class="small">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
+          `;
+          grid.appendChild(el);
+        });
+      }catch(e){ /* silent */ }
+    }
+    window.addEventListener('load', ()=>{ loadAn(); loadBlog(); });
+  </script>
 
 </body>
 </html>

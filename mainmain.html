@@ -206,6 +206,29 @@
     </div>
   </section>
 
+  <!-- Admin Publisher (visible only for admin role) -->
+  <section id="adminPublisher" class="about reveal" style="display:none">
+    <h2>Admin Publisher</h2>
+    <p style="color:#cbd5e1;margin-top:6px">Create announcements and blog posts directly from here.</p>
+    <div class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:12px">
+      <div class="card">
+        <h3 style="margin-bottom:8px">New Announcement</h3>
+        <div class="form-group"><input id="annTitle" placeholder="Title"></div>
+        <div class="form-group"><input id="annMessage" placeholder="Message"></div>
+        <button id="btnPublishAnn" class="btn btn-primary">Publish Announcement</button>
+        <div id="annStatus" style="margin-top:8px;color:#cbd5e1"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:8px">New Blog Post</h3>
+        <div class="form-group"><input id="blogTitle" placeholder="Title"></div>
+        <div class="form-group"><input id="blogExcerpt" placeholder="Excerpt"></div>
+        <div class="form-group"><input id="blogImage" placeholder="Image URL (optional)"></div>
+        <button id="btnPublishBlog" class="btn btn-primary">Publish Blog</button>
+        <div id="blogStatus" style="margin-top:8px;color:#cbd5e1"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Feature Section (moved to top) -->
   <section id="features">
     <h2>Our Features</h2>
@@ -643,9 +666,19 @@
         });
       }
     }
-    // Attach auth state once Firebase has loaded
-    if (window.auth) { window.auth.onAuthStateChanged(setAuthUI); } else { setAuthUI(null); }
-    window.addEventListener('load', () => { if (window.auth) window.auth.onAuthStateChanged(setAuthUI); });
+    // Attach auth state once Firebase has loaded and toggle admin tools
+    async function onAuthChanged(user){
+      setAuthUI(user);
+      try{
+        const panel = document.getElementById('adminPublisher');
+        if(!panel || !window.db || !user){ panel && (panel.style.display='none'); return; }
+        const snap = await db.collection('users').doc(user.uid).get();
+        const role = snap.exists ? (snap.data().role || 'student') : 'student';
+        panel.style.display = role === 'admin' ? 'block' : 'none';
+      }catch(_){ /* silent */ }
+    }
+    if (window.auth) { window.auth.onAuthStateChanged(onAuthChanged); } else { setAuthUI(null); }
+    window.addEventListener('load', () => { if (window.auth) window.auth.onAuthStateChanged(onAuthChanged); });
 
     // Firestore-powered content (public reads recommended): announcements and blog
     async function loadAnnouncements(){
@@ -688,6 +721,34 @@
     }
 
     window.addEventListener('load', ()=>{ loadAnnouncements(); loadBlog(); });
+
+    // Admin publishing handlers
+    document.getElementById('btnPublishAnn')?.addEventListener('click', async () => {
+      try{
+        const t = document.getElementById('annTitle').value.trim();
+        const m = document.getElementById('annMessage').value.trim();
+        if(!t||!m) return showAlert('Fill title and message','error');
+        await db.collection('public_announcements').add({
+          title:t, message:m, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        document.getElementById('annStatus').textContent = 'Published ✅';
+        loadAnnouncements();
+      }catch(e){ showAlert(e.message||'Failed to publish announcement','error'); }
+    });
+
+    document.getElementById('btnPublishBlog')?.addEventListener('click', async () => {
+      try{
+        const t = document.getElementById('blogTitle').value.trim();
+        const x = document.getElementById('blogExcerpt').value.trim();
+        const i = document.getElementById('blogImage').value.trim();
+        if(!t||!x) return showAlert('Fill title and excerpt','error');
+        await db.collection('blog_posts').add({
+          title:t, excerpt:x, image:i||null, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        document.getElementById('blogStatus').textContent = 'Published ✅';
+        loadBlog();
+      }catch(e){ showAlert(e.message||'Failed to publish blog','error'); }
+    });
   </script>
 </body>
 </html>
