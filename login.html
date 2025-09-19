@@ -1,101 +1,111 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Login Page</title>
+  <title>Login</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #a78bfa, #f0abfc);
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .login-box {
-      background: white;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-      width: 350px;
-      text-align: center;
-    }
-    h2 {
-      color: #6b21a8;
-      margin-bottom: 20px;
-    }
-    select, input {
-      width: 90%;
-      padding: 12px;
-      margin: 10px 0;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 15px;
-    }
-    button {
-      width: 95%;
-      padding: 12px;
-      margin-top: 15px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      background: #8b5cf6;
-      color: white;
-      font-size: 16px;
-    }
-    button:hover {
-      background: #6d28d9;
-    }
-    .error {
-      color: red;
-      margin-top: 10px;
-      font-size: 14px;
-    }
+    body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #a78bfa, #f0abfc); height: 100vh; display: flex; justify-content: center; align-items: center; }
+    .login-box { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 6px 12px rgba(0,0,0,0.15); width: 360px; text-align: center; }
+    h2 { color: #6b21a8; margin-bottom: 12px; }
+    p { color: #6b7280; font-size: 13px; margin-top: 0; }
+    select, input { width: 92%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
+    button { width: 95%; padding: 12px; margin-top: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background: #8b5cf6; color: white; font-size: 16px; }
+    button:hover { background: #6d28d9; }
+    .btn-google { background:#ef4444; }
+    .error { color: red; margin-top: 10px; font-size: 14px; min-height: 20px; }
   </style>
 </head>
 <body>
 
   <div class="login-box">
-    <h2>Login</h2>
+    <h2>Welcome</h2>
+    <p>Sign in or create an account</p>
     <select id="role">
-      <option value="admin">Admin</option>
-      <option value="teacher">Teacher</option>
       <option value="student">Student</option>
+      <option value="teacher">Teacher</option>
+      <option value="admin">Admin</option>
     </select>
-    <input type="text" id="userid" placeholder="Enter ID">
-    <input type="password" id="password" placeholder="Enter Password">
-    <button onclick="login()">Login</button>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password (min 6 chars)">
+    <button id="btnSignIn">Sign In</button>
+    <button id="btnSignUp">Create Account</button>
+    <button id="btnGoogle" class="btn-google">Continue with Google</button>
     <div class="error" id="error"></div>
   </div>
 
+  <!-- Firebase SDKs and shared scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+
   <script>
-    // Predefined credentials
-    const credentials = {
-      admin: { id: "admin123", password: "adminpass" },
-      teacher: { id: "teacher123", password: "teacherpass" },
-      student: { id: "student123", password: "studentpass" }
-    };
+    const $ = (s, c=document) => c.querySelector(s);
+    const err = $('#error');
+    const setErr = (m='') => err.textContent = m;
 
-    function login() {
-      const role = document.getElementById("role").value;
-      const userId = document.getElementById("userid").value;
-      const pass = document.getElementById("password").value;
-      const error = document.getElementById("error");
-
-      if (userId === credentials[role].id && pass === credentials[role].password) {
-        if (role === "admin") {
-          window.location.href = "admin.html";
-        } else if (role === "teacher") {
-          window.location.href = "teacher.html";
-        } else {
-          window.location.href = "student.html";
-        }
-      } else {
-        error.textContent = "❌ Invalid ID or Password!";
-      }
+    function redirectByRole(role){
+      if (role === 'admin') location.href = 'admin.html';
+      else if (role === 'teacher') location.href = 'teacher.html';
+      else location.href = 'student.html';
     }
+
+    async function ensureRole(user){
+      await ensureUserDoc(user);
+      const sel = $('#role').value;
+      const ref = db.collection('users').doc(user.uid);
+      const snap = await ref.get();
+      const current = snap.exists ? snap.data().role : null;
+      if (!current) { await ref.set({ role: sel }, { merge: true }); return sel; }
+      return current;
+    }
+
+    // Attach auth state to redirect if already signed in
+    window.addEventListener('load', () => {
+      if (window.auth) {
+        auth.onAuthStateChanged(async (user) => {
+          if (user) {
+            const ref = db.collection('users').doc(user.uid);
+            const snap = await ref.get();
+            const role = snap.exists ? (snap.data().role || 'student') : 'student';
+            redirectByRole(role);
+          }
+        });
+      }
+    });
+
+    $('#btnSignIn').addEventListener('click', async () => {
+      setErr('');
+      try {
+        const email = $('#email').value.trim();
+        const pass = $('#password').value;
+        await auth.signInWithEmailAndPassword(email, pass);
+        const role = await ensureRole(auth.currentUser);
+        redirectByRole(role);
+      } catch(e){ setErr(e.message || 'Sign in failed'); }
+    });
+
+    $('#btnSignUp').addEventListener('click', async () => {
+      setErr('');
+      try {
+        const email = $('#email').value.trim();
+        const pass = $('#password').value;
+        const cred = await auth.createUserWithEmailAndPassword(email, pass);
+        await ensureUserDoc(cred.user);
+        const role = await ensureRole(cred.user);
+        redirectByRole(role);
+      } catch(e){ setErr(e.message || 'Sign up failed'); }
+    });
+
+    $('#btnGoogle').addEventListener('click', async () => {
+      setErr('');
+      try {
+        const user = await signInWithGoogle();
+        const role = await ensureRole(user);
+        redirectByRole(role);
+      } catch(e){ setErr(e.message || 'Google sign-in failed'); }
+    });
   </script>
 
 </body>

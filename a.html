@@ -234,11 +234,38 @@
       return Math.random().toString(36).substring(2, 8).toUpperCase();
     }
 
-    // Create meeting
-    createMeetingBtn.addEventListener('click', () => {
+    // Firebase gate: require auth for usage
+    function requireAuthPage(){
+      if (!window.auth) return;
+      auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+          alert('Please sign in to use meetings. Redirecting...');
+          location.href = 'mainmain.html#signin';
+        }
+      });
+    }
+    // Attach after load so Firebase is available
+    window.addEventListener('load', () => {
+      requireAuthPage();
+      // Also recheck after a brief delay in case scripts load slowly
+      setTimeout(requireAuthPage, 200);
+    });
+
+    // Create meeting (persist to Firestore)
+    createMeetingBtn.addEventListener('click', async () => {
       meetingCode = generateMeetingCode();
       generatedCodeDiv.textContent = `Your Meeting Code: ${meetingCode}`;
       alert("Share this code with students: " + meetingCode);
+      try {
+        if (window.db && window.auth?.currentUser) {
+          await db.collection('meetings').doc(meetingCode).set({
+            code: meetingCode,
+            ownerUid: auth.currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            active: true
+          }, { merge: true });
+        }
+      } catch (e) { console.warn('Failed to save meeting', e); }
     });
 
     // Join meeting
@@ -249,6 +276,19 @@
         return;
       }
       meetingCode = code;
+      try {
+        if (window.db && window.auth?.currentUser) {
+          const ref = db.collection('meetings').doc(meetingCode);
+          const snap = await ref.get();
+          if (!snap.exists) {
+            await ref.set({ code: meetingCode, createdAt: firebase.firestore.FieldValue.serverTimestamp(), active: true }, { merge: true });
+          }
+          await ref.collection('participants').doc(auth.currentUser.uid).set({
+            uid: auth.currentUser.uid,
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      } catch (e) { console.warn('Join meeting save failed', e); }
       startMeeting();
     });
 
@@ -302,9 +342,22 @@
     });
 
     // Mark Attendance Button Functionality
-    markAttendanceBtn.addEventListener('click', () => {
-      alert("Attendance marked successfully!");
-      // Future implementation for attendance marking
+    markAttendanceBtn.addEventListener('click', async () => {
+      try {
+        if (window.db && window.auth?.currentUser && meetingCode) {
+          await db.collection('attendance').add({
+            meetingCode,
+            uid: auth.currentUser.uid,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          alert('Attendance marked successfully!');
+        } else {
+          alert('Sign-in and meeting required to mark attendance');
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Failed to mark attendance');
+      }
     });
 
     // Answer Quiz Button Functionality
@@ -313,5 +366,11 @@
       // Future implementation for answering quiz
     });
   </script>
+  <!-- Firebase SDKs and shared scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
 </body>
 </html>

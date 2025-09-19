@@ -66,14 +66,19 @@
 <div class="box" id="loginBox">
   <h2>Login</h2>
   <select id="role">
-    <option value="admin">Admin</option>
-    <option value="teacher">Teacher</option>
     <option value="student">Student</option>
+    <option value="teacher">Teacher</option>
+    <option value="admin">Admin</option>
   </select>
-  <input type="text" id="userid" placeholder="Enter ID">
-  <input type="password" id="password" placeholder="Enter Password">
-  <button onclick="login()">Login</button>
+  <input type="email" id="userid" placeholder="Email">
+  <input type="password" id="password" placeholder="Password (min 6 chars)">
+  <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+    <button onclick="login()">Sign In</button>
+    <button onclick="signup()">Sign Up</button>
+    <button onclick="googleLogin()" style="background:#ef4444;">Sign in with Google</button>
+  </div>
   <div class="error" id="error"></div>
+  <p style="font-size:12px;color:#555;text-align:center;margin-top:8px;">Selected role is applied only on first sign in; admins can update in Firestore later.</p>
 </div>
 
 <!-- Main Box -->
@@ -105,107 +110,144 @@
 </div>
 
 <script>
-  // Credentials
-  const credentials={
-    admin:{id:"admin123",password:"adminpass"},
-    teacher:{id:"teacher123",password:"teacherpass"},
-    student:{id:"student123",password:"studentpass"}
-  };
-
   let currentRole=null;
-  let leaveApplications=[]; // store all leave applications
+  let currentUser=null;
 
-  function login(){
-    const role=document.getElementById("role").value;
-    const uid=document.getElementById("userid").value;
-    const pass=document.getElementById("password").value;
-    const err=document.getElementById("error");
-    if(uid===credentials[role].id && pass===credentials[role].password){
-      currentRole=role;
-      document.getElementById("loginBox").style.display="none";
-      document.getElementById("mainBox").style.display="block";
-      document.getElementById("currentRole").textContent=currentRole.toUpperCase();
-      // admin को form नहीं दिखेगा
-      if(currentRole==="admin"){
-        document.getElementById("leaveFormSection").style.display="none";
+  const errEl = document.getElementById('error');
+
+  function setError(msg){ errEl.textContent = msg || ''; }
+
+  // Auth state
+  function initAuth(){
+    if (!window.auth) return setError('Auth unavailable.');
+    auth.onAuthStateChanged(async (user) => {
+      currentUser = user;
+      if (user) {
+        // Fetch or set role from Firestore users doc
+        try {
+          await ensureUserDoc(user);
+          let roleSel = document.getElementById('role').value;
+          const userRef = db.collection('users').doc(user.uid);
+          const snap = await userRef.get();
+          const existingRole = snap.exists ? (snap.data().role || null) : null;
+          if (!existingRole) {
+            await userRef.set({ role: roleSel }, { merge: true });
+            currentRole = roleSel;
+          } else {
+            currentRole = existingRole;
+          }
+        } catch(e){ console.warn(e); }
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('mainBox').style.display = 'block';
+        document.getElementById('currentRole').textContent = (currentRole||'user').toUpperCase();
+        document.getElementById('leaveFormSection').style.display = currentRole==='admin' ? 'none' : 'block';
+        subscribeApplications();
       } else {
-        document.getElementById("leaveFormSection").style.display="block";
+        document.getElementById('loginBox').style.display = 'block';
+        document.getElementById('mainBox').style.display = 'none';
       }
-      renderApplications();
-    } else {
-      err.textContent="❌ Invalid ID or Password";
-    }
-  }
-
-  function logout(){
-    currentRole=null;
-    document.getElementById("loginBox").style.display="block";
-    document.getElementById("mainBox").style.display="none";
-    document.getElementById("userid").value="";
-    document.getElementById("password").value="";
-  }
-
-  document.getElementById("leaveForm").addEventListener("submit",function(e){
-    e.preventDefault();
-    const name=document.getElementById("studentName").value;
-    const reason=document.getElementById("leaveReason").value;
-    const days=document.getElementById("leaveDays").value;
-    // push to array
-    leaveApplications.push({
-      id:Date.now(),
-      name:name,
-      reason:reason,
-      days:days,
-      status:"pending",
-      submittedBy:currentRole // कौन भेज रहा है
     });
-    this.reset();
-    renderApplications();
+  }
+
+  async function login(){
+    setError('');
+    const email = document.getElementById('userid').value.trim();
+    const pass = document.getElementById('password').value;
+    try { await auth.signInWithEmailAndPassword(email, pass); } catch(e){ setError(e.message||'Login failed'); }
+  }
+  async function signup(){
+    setError('');
+    const email = document.getElementById('userid').value.trim();
+    const pass = document.getElementById('password').value;
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await ensureUserDoc(cred.user);
+    } catch(e){ setError(e.message||'Signup failed'); }
+  }
+  async function googleLogin(){
+    setError('');
+    try { await signInWithGoogle(); } catch(e){ setError(e.message||'Google sign-in failed'); }
+  }
+  async function logout(){
+    try { await auth.signOut(); } catch(e){ console.error(e); }
+  }
+
+  // Firestore: leave applications
+  let unsubApps = null;
+  function subscribeApplications(){
+    if (!window.db) return;
+    unsubApps && unsubApps();
+    unsubApps = db.collection('leave_applications').orderBy('createdAt','desc')
+      .onSnapshot(snap => {
+        const apps = [];
+        snap.forEach(doc => apps.push({ id: doc.id, ...doc.data() }));
+        renderApplications(apps);
+      });
+  }
+
+  document.getElementById('leaveForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!currentUser) { setError('Sign in required'); return; }
+    const name=document.getElementById('studentName').value;
+    const reason=document.getElementById('leaveReason').value;
+    const days=document.getElementById('leaveDays').value;
+    try {
+      await db.collection('leave_applications').add({
+        name, reason, days,
+        status: 'pending',
+        submittedByUid: currentUser.uid,
+        submittedByRole: currentRole,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      this.reset();
+    } catch(e){ setError('Failed to submit: ' + (e.message||'')); }
   });
 
-  function renderApplications(){
-    const container=document.getElementById("requestList");
+  function renderApplications(leaveApplications){
+    const container=document.getElementById('requestList');
     container.innerHTML="";
     leaveApplications.forEach(app=>{
-      const card=document.createElement("div");
-      card.className="request-card";
-      if(app.status==="approved")card.classList.add("approved");
-      if(app.status==="rejected")card.classList.add("rejected");
-      card.innerHTML=`<b>${app.name}</b> (${app.submittedBy}) requested <b>${app.days}</b> day(s)<br>Reason: ${app.reason}<br>Status: <b>${app.status}</b>`;
+      const card=document.createElement('div');
+      card.className='request-card';
+      if(app.status==='approved')card.classList.add('approved');
+      if(app.status==='rejected')card.classList.add('rejected');
+      card.innerHTML=`<b>${app.name}</b> (${app.submittedByRole||'user'}) requested <b>${app.days}</b> day(s)<br>Reason: ${app.reason}<br>Status: <b>${app.status}</b>`;
       // Approve / Reject logic
-      if(currentRole==="admin" || currentRole==="teacher"){
-        // admin and teacher both can approve/reject only if pending
-        if(app.status==="pending"){
-          // teacher केवल student की application approve/reject कर सके
-          if(currentRole==="admin" || (currentRole==="teacher" && app.submittedBy==="student")){
-            const btns=document.createElement("div");
-            btns.className="buttons";
-            const approve=document.createElement("button");
-            approve.className="approve-btn";
-            approve.textContent="Approve";
-            approve.onclick=()=>updateStatus(app.id,"approved");
-            const reject=document.createElement("button");
-            reject.className="reject-btn";
-            reject.textContent="Reject";
-            reject.onclick=()=>updateStatus(app.id,"rejected");
-            btns.appendChild(approve);
-            btns.appendChild(reject);
-            card.appendChild(btns);
-          }
-        }
+      const canModerate = currentRole==='admin' || currentRole==='teacher';
+      const canTeacherAct = currentRole==='teacher' && (app.submittedByRole==='student');
+      if (app.status==='pending' && (currentRole==='admin' || canTeacherAct)){
+        const btns=document.createElement('div');
+        btns.className='buttons';
+        const approve=document.createElement('button');
+        approve.className='approve-btn';
+        approve.textContent='Approve';
+        approve.onclick=()=>updateStatus(app.id,'approved');
+        const reject=document.createElement('button');
+        reject.className='reject-btn';
+        reject.textContent='Reject';
+        reject.onclick=()=>updateStatus(app.id,'rejected');
+        btns.appendChild(approve); btns.appendChild(reject);
+        card.appendChild(btns);
       }
       container.appendChild(card);
     });
   }
 
-  function updateStatus(id,status){
-    leaveApplications=leaveApplications.map(a=>{
-      if(a.id===id)a.status=status;
-      return a;
-    });
-    renderApplications();
+  async function updateStatus(id,status){
+    try { await db.collection('leave_applications').doc(id).set({ status }, { merge: true }); }
+    catch(e){ setError('Failed to update: ' + (e.message||'')); }
   }
+
+  // Initialize after SDKs load
+  window.addEventListener('load', () => { setTimeout(initAuth, 0); });
 </script>
+
+<!-- Firebase SDKs and shared scripts -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="auth.js"></script>
 
 </body>
 </html>
