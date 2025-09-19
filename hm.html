@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Leave Management System</title>
+<link rel="stylesheet" href="ui.css">
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -61,9 +62,10 @@
 </style>
 </head>
 <body>
+<div class="bg-blob" aria-hidden="true"></div>
 
 <!-- Login Box -->
-<div class="box" id="loginBox">
+<div class="box container-glass" id="loginBox">
   <h2>Login</h2>
   <select id="role">
     <option value="student">Student</option>
@@ -82,7 +84,7 @@
 </div>
 
 <!-- Main Box -->
-<div class="box" id="mainBox" style="display:none;">
+<div class="box container-glass" id="mainBox" style="display:none;">
   <h2>Leave Management System</h2>
   <p style="text-align:center;">Logged in as <b><span id="currentRole"></span></b> 
   <button onclick="logout()">Logout</button></p>

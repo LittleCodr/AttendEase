@@ -18,7 +18,9 @@
   };
 
   window.signOutUser = async function signOutUser(){
-    try { await auth.signOut(); } catch(e){ console.error(e); }
+    try { await auth.signOut(); }
+    catch(e){ console.error(e); }
+    finally { try { window.location.href = 'mainmain.html'; } catch(_) {} }
   };
 
   // Gate: require authentication, then run cb(user)

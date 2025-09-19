@@ -52,28 +52,51 @@
     }
 
     async function ensureRole(user){
-      await ensureUserDoc(user);
+      try {
+        await ensureUserDoc(user);
+      } catch(_) {}
       const sel = $('#role').value;
       const ref = db.collection('users').doc(user.uid);
-      const snap = await ref.get();
-      const current = snap.exists ? snap.data().role : null;
-      if (!current) { await ref.set({ role: sel }, { merge: true }); return sel; }
-      return current;
+      try {
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data().role : null;
+        if (!current) {
+          try { await ref.set({ role: sel }, { merge: true }); } catch(_) {}
+          return sel;
+        }
+        return current;
+      } catch (e) {
+        // Offline or network issue: proceed with selected role and retry later silently
+        try { ref.set({ role: sel }, { merge: true }); } catch(_) {}
+        return sel;
+      }
     }
 
-    // Attach auth state to redirect if already signed in
-    window.addEventListener('load', () => {
-      if (window.auth) {
-        auth.onAuthStateChanged(async (user) => {
-          if (user) {
-            const ref = db.collection('users').doc(user.uid);
-            const snap = await ref.get();
-            const role = snap.exists ? (snap.data().role || 'student') : 'student';
-            redirectByRole(role);
-          }
-        });
-      }
-    });
+    // Page is fully accessible without auth. No auto-redirect even if signed in.
+
+    // Public Firestore read (no auth required): show latest announcements if available
+    async function loadPublicFeed(){
+      try {
+        if (!window.db) return;
+        const box = document.createElement('div');
+        box.style.cssText = 'margin-top:14px;text-align:left;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;max-height:180px;overflow:auto;';
+        box.innerHTML = '<div style="font-weight:700;color:#6b21a8;margin-bottom:6px;">Announcements</div>';
+        const snap = await db.collection('public_announcements').orderBy('createdAt','desc').limit(10).get();
+        if (snap.empty) {
+          box.innerHTML += '<div style="color:#6b7280;">No announcements yet.</div>';
+        } else {
+          snap.forEach(doc => {
+            const d = doc.data();
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:6px 0;border-bottom:1px dashed #e5e7eb;';
+            item.innerHTML = `<div style="font-weight:600;">${d.title||'Untitled'}</div><div style="font-size:12px;color:#6b7280;">${d.message||''}</div>`;
+            box.appendChild(item);
+          });
+        }
+        document.querySelector('.login-box').appendChild(box);
+      } catch (e) { /* silent */ }
+    }
+    window.addEventListener('load', loadPublicFeed);
 
     $('#btnSignIn').addEventListener('click', async () => {
       setErr('');

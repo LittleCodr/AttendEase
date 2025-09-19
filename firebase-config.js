@@ -39,6 +39,15 @@
   window.auth = firebase.auth();
   window.db = firebase.firestore();
 
+  // Firestore settings and offline persistence (best-effort)
+  try {
+    window.db.settings({ ignoreUndefinedProperties: true });
+    firebase.firestore().enablePersistence({ synchronizeTabs: true })
+      .catch((err) => console.warn('[Firebase] Persistence not enabled:', err && err.code));
+  } catch (e) {
+    console.warn('[Firebase] Firestore settings/persistence error:', e);
+  }
+
   // Expose a small debugger utility
   window.debugFirebase = function(){
     try {

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="ui.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -81,16 +82,17 @@
   </style>
 </head>
 <body>
+  <div class="bg-blob" aria-hidden="true"></div>
 
   <!-- 🔹 Top Bar -->
-  <div class="top-bar">
-    <a href="login.html" class="logout-btn">🏠 Home / Logout</a>
+  <div class="top-bar container-glass" style="border-radius:16px;margin:14px;">
+    <a href="login.html" class="logout-btn btn">🏠 Home / Logout</a>
   </div>
 
   <h1>Admin Dashboard</h1>
 
   <!-- 🔹 Add Student Form -->
-  <div class="form-box">
+  <div class="form-box container-glass">
     <input type="text" id="roll" placeholder="Roll No">
     <input type="text" id="name" placeholder="Name">
     <input type="number" id="attendance" placeholder="Attendance %">
@@ -98,7 +100,7 @@
   </div>
 
   <!-- 🔹 Students Table -->
-  <table id="studentTable">
+  <table id="studentTable" class="container-glass" style="border-radius:16px;overflow:hidden;">
     <thead>
       <tr>
         <th>Roll No</th>

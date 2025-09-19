@@ -1,0 +1,50 @@
+/* Neon-glass shared UI */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Poppins:wght@600;800&family=JetBrains+Mono:wght@600&display=swap');
+@import url('https://fonts.cdnfonts.com/css/norwester');
+
+:root{
+  --bg:#0a0b10; --muted:#9ca3af; --accent-1:#7c3aed; --accent-2:#06b6d4; --accent-3:#f59e0b; --white:#fff;
+  --glass:rgba(255,255,255,.06); --radius:22px; --fast:180ms;
+  --heading-font:'Norwester','Poppins',system-ui,sans-serif;
+  --mono-font:'JetBrains Mono',ui-monospace,monospace;
+  --body-font:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--body-font);color:var(--white);background:
+  radial-gradient(1200px 600px at 10% -10%, rgba(124,58,237,.25), transparent 50%),
+  radial-gradient(1000px 500px at 90% 10%, rgba(6,182,212,.25), transparent 60%),
+  linear-gradient(135deg,#0a0b10 0%,#0b0d16 40%,#0a0b10 100%);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; overflow-x:hidden;
+}
+h1,h2,h3{font-family:var(--heading-font);text-transform:uppercase;letter-spacing:.5px;text-shadow:0 2px 20px rgba(124,58,237,.25)}
+section{padding:100px 6%;position:relative;margin-bottom:60px;opacity:0;transform:translateY(60px);transition:opacity .7s ease,transform .7s ease}
+.section-visible{opacity:1;transform:translateY(0)}
+
+.bg-blob{position:fixed;inset:-20% -10% auto auto;width:60vw;height:60vw;background:
+  radial-gradient(closest-side, rgba(124,58,237,.45), transparent),
+  radial-gradient(closest-side, rgba(6,182,212,.35), transparent 60%);
+  filter:blur(60px);mix-blend-mode:overlay;pointer-events:none;z-index:0;border-radius:50%;animation:blobShift 18s ease-in-out infinite alternate}
+@keyframes blobShift{from{transform:translate(-6%,-4%) rotate(0)}to{transform:translate(6%,2%) rotate(20deg)}}
+
+.container-glass{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.16);border-radius:28px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+.card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.16);border-radius:var(--radius);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);transition:transform .25s ease,box-shadow .25s ease}
+.card::before{content:"";position:absolute;inset:-2px;border-radius:inherit;background:linear-gradient(135deg, rgba(124,58,237,.6), rgba(6,182,212,.5));filter:blur(20px);opacity:.25;z-index:-1}
+.card:hover{transform:perspective(900px) rotateX(3deg) rotateY(-3deg) scale(1.02);box-shadow:0 30px 90px rgba(124,58,237,.35)}
+
+.navbar-shell{position:fixed;top:0;width:100%;z-index:1000}
+.navbar-glass{margin:14px auto;height:72px;max-width:1200px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 40px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.05);border-radius:16px;transition:transform .25s ease, box-shadow .25s ease}
+.navbar-shell.shrink .navbar-glass{transform:scale(.98) translateY(-6px);box-shadow:0 8px 30px rgba(0,0,0,.6)}
+
+.btn{display:inline-block;padding:12px 18px;border-radius:14px;border:1px solid rgba(255,255,255,.10);cursor:pointer;font-weight:600;transition:transform var(--fast) ease,box-shadow var(--fast) ease,background var(--fast) ease;text-decoration:none;color:var(--white)}
+.btn-primary{background:linear-gradient(135deg, var(--accent-2), var(--accent-1));box-shadow:0 10px 30px rgba(6,182,212,.3);overflow:hidden}
+.btn-primary::before{content:"";position:absolute;inset:-1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transform:translateX(-120%);animation:btnShimmer 3.2s linear infinite}
+@keyframes btnShimmer{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+.btn-secondary{background:rgba(255,255,255,.05);border:1px solid rgba(6,182,212,.6)}
+.btn-secondary:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px rgba(6,182,212,.8),0 10px 26px rgba(6,182,212,.35)}
+
+.reveal{opacity:0;transform:translateY(30px) rotateX(8deg);transform-origin:top;perspective:900px;transition:opacity .6s ease, transform .6s ease}
+.reveal.show{opacity:1;transform:none}
+
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+@media(max-width:880px){section{padding:70px 5%}}
