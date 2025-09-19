@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AttendanceX System - Enhanced</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Poppins:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.cdnfonts.com/css/norwester" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1724;--muted:#94a3b8;--accent-1:#7c3aed;--accent-2:#06b6d4;--accent-3:#f97316;--white:#f8fafc;
+  --glass:rgba(255,255,255,0.06);--radius:18px;--fast:200ms;
+  --heading-font:'Norwester','Poppins','Inter',sans-serif;
+  --mono-font:'JetBrains Mono','Fira Mono',monospace;
+  --body-font:'Poppins','Inter',Arial,sans-serif;
+}
+html,body{height:100%;margin:0;}
+body{font-family:var(--body-font);background:radial-gradient(1200px 600px at 10% 10%, rgba(124,58,237,0.13), transparent), linear-gradient(120deg,#041124 0%, #071027 40%, #1e293b 100%);color:var(--white);overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+a{color:inherit;text-decoration:none;}
+h1,h2,h3{font-family:var(--heading-font);font-weight:900;letter-spacing:0.5px;text-transform:uppercase;text-shadow:0 6px 30px rgba(2,6,23,0.18),0 1px 0 #fff1;}
+h1{font-size:2.6rem;line-height:1.02;}
+h2{font-size:2rem;}h3{font-size:1.2rem;}
+.bg-blob{position:fixed;right:-10%;top:-10%;width:60vmax;height:60vmax;pointer-events:none;filter:blur(60px);opacity:0.32;z-index:0;background:radial-gradient(circle at 30% 30%, rgba(124,58,237,0.65), transparent 25%), radial-gradient(circle at 70% 70%, rgba(6,182,212,0.55), transparent 30%);mix-blend-mode:overlay;animation:blobShift 18s linear infinite alternate;}
+@keyframes blobShift{0%{transform:translateY(0) rotate(0)}50%{transform:translateY(-6%) rotate(30deg)}100%{transform:translateY(0) rotate(0)}}
+.navbar{position:fixed;left:6%;right:6%;top:18px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;z-index:1200;backdrop-filter:blur(16px);background:linear-gradient(120deg,rgba(255,255,255,0.08),rgba(124,58,237,0.08) 80%,rgba(6,182,212,0.08));border-radius:18px;border:1.5px solid rgba(255,255,255,0.09);box-shadow:0 8px 30px rgba(2,6,23,0.6);}
+.logo{font-size:1.5rem;font-family:var(--heading-font);font-weight:900;color:var(--accent-2);letter-spacing:1.2px;text-shadow:0 2px 12px #0002;}
+.nav-links{display:flex;gap:14px;align-items:center;}
+.nav-links a{padding:8px 18px;border-radius:12px;font-weight:700;display:inline-block;color:var(--white);opacity:.92;transition:all var(--fast) cubic-bezier(.2,.9,.2,1);background:rgba(255,255,255,0.01);position:relative;overflow:hidden;}
+.nav-links a.cta{background:linear-gradient(90deg,var(--accent-1),var(--accent-2));box-shadow:0 8px 30px rgba(124,58,237,0.12);color:var(--white);}
+.nav-links a:hover{transform:translateY(-4px) scale(1.04);opacity:1;box-shadow:0 2px 18px var(--accent-2);}
+.nav-links a::after{content:'';display:block;position:absolute;left:0;bottom:0;width:100%;height:2px;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));opacity:0;transition:opacity .2s;}
+.nav-links a:hover::after{opacity:1;}
+.container {max-width:480px;margin: 120px auto 0 auto;background: linear-gradient(120deg,rgba(255,255,255,0.04),rgba(124,58,237,0.04) 80%,rgba(6,182,212,0.04));padding: 38px 32px 32px 32px;border-radius: 22px;box-shadow:0 12px 36px rgba(2,6,23,0.6);position:relative;border:2px solid rgba(255,255,255,0.09);backdrop-filter: blur(8px);transition: box-shadow .35s, transform .35s;overflow:hidden;}
+button {padding: 14px 32px;border-radius: 14px;font-weight:800;font-size:1.1rem;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:10px;transition:transform .22s, box-shadow .22s;position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(6,182,212,0.08);}
+button.primary{background:linear-gradient(90deg,var(--accent-1),var(--accent-2));color:var(--white);border:2px solid var(--accent-2);}
+button.secondary{background:rgba(255,255,255,0.04);border:2px solid var(--accent-1);color:var(--accent-1);}
+button.primary:hover,button.secondary:hover{transform:translateY(-6px) scale(1.04);box-shadow:0 20px 50px var(--accent-2),0 0 0 2px var(--accent-1) inset;}
+input {padding: 12px 14px;border-radius: 10px;border:1.5px solid var(--accent-2);background:rgba(255,255,255,0.04);color:var(--white);margin:10px 0;font-family:var(--mono-font);font-size:1.08rem;width:100%;box-sizing:border-box;}
+video {width:100%;margin:10px 0;border-radius:14px;box-shadow:0 8px 30px rgba(2,6,23,0.5);}
+table {width: 100%;border-collapse: collapse;margin-top: 20px;background:rgba(255,255,255,0.04);border-radius:14px;overflow:hidden;box-shadow:0 2px 12px #0001;}
+th, td {border: 1px solid #2a3344;padding: 10px;text-align: center;font-family:var(--mono-font);color:var(--white);background:rgba(255,255,255,0.01);}
+th { background: #1e293b; }
+.glass-card {background: linear-gradient(120deg,rgba(255,255,255,0.08),rgba(124,58,237,0.08) 80%,rgba(6,182,212,0.08));border-radius: 22px;box-shadow: 0 2px 18px #0001, 0 0 0 2px var(--accent-2) inset;border: 1.5px solid rgba(124,58,237,0.13);position: relative;transition: transform .28s cubic-bezier(.2,.9,.2,1), box-shadow .28s;z-index: 1;margin-bottom: 18px;padding: 24px 18px;cursor:pointer;}
+.glass-card:hover {transform: translateY(-10px) scale(1.04) rotate(-1deg);box-shadow: 0 12px 40px var(--accent-2),0 0 0 2px var(--accent-1) inset;}
+.modal{position:fixed;inset:0;background:linear-gradient(120deg,rgba(2,6,23,0.7),rgba(124,58,237,0.18) 80%,rgba(6,182,212,0.18));display:none;align-items:center;justify-content:center;z-index:1400;backdrop-filter:blur(8px);}
+.modal.active{display:flex}
+.modal-content{width:400px;max-width:92%;background:linear-gradient(120deg,rgba(255,255,255,0.04),rgba(124,58,237,0.04) 80%,rgba(6,182,212,0.04));padding:32px 24px 24px 24px;border-radius:18px;border:2px solid rgba(255,255,255,0.09);box-shadow:0 30px 90px rgba(2,6,23,0.8);transform:translateY(12px) scale(.98);opacity:0;transition:all .28s cubic-bezier(.2,.9,.2,1);font-family:var(--mono-font);}
+.modal.active .modal-content{transform:translateY(0) scale(1);opacity:1;}
+.close-btn{cursor:pointer;float:right;font-size:1.2rem;}
+@media(max-width:700px){.container{margin:80px 4% 0 4%;padding:24px 8%;}.navbar{padding:10px 4%;}}
+
+/* Role Cards Specific */
+.role-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 24px;
+}
+.role-cards .glass-card {
+  flex: 1 1 calc(50% - 10px);
+  min-width: 200px;
+}
+.role-cards .glass-card h3 {margin:0 0 10px 0;color:var(--white);font-weight:800;}
+.role-cards .glass-card p {color:#cbd5e1;font-size:0.9rem;margin:0;}
+@media(max-width:700px) {
+  .role-cards {flex-direction:column;align-items:center;}
+  .role-cards .glass-card {width:100%;}
+}
+</style>
+</head>
+<body>
+<div class="bg-blob" aria-hidden="true"></div>
+<div class="navbar">
+  <div class="logo">AttendanceX</div>
+  <div class="nav-links">
+    <a href="#" onclick="showTeacher()">Teacher</a>
+    <a href="#" onclick="showStudent()">Student</a>
+    <a href="#" onclick="showParent()">Parent</a>
+    <a href="#" onclick="showAdmin()">Admin</a>
+  </div>
+</div>
+
+<!-- Role Selection -->
+<div class="container" id="roleSelect">
+  <h1>Attendance System</h1>
+  <p>Select Role:</p>
+  <div class="role-cards">
+    <div class="glass-card" onclick="showTeacher()">
+      <h3>Teacher</h3>
+      <p>Manage classes & take attendance</p>
+    </div>
+    <div class="glass-card" onclick="showStudent()">
+      <h3>Student</h3>
+      <p>Mark your attendance</p>
+    </div>
+    <div class="glass-card" onclick="showParent()">
+      <h3>Parent</h3>
+      <p>View child's attendance timeline</p>
+    </div>
+    <div class="glass-card" onclick="showAdmin()">
+      <h3>Admin</h3>
+      <p>View all attendance records</p>
+    </div>
+  </div>
+</div>
+
+<!-- Teacher Page -->
+<div class="container" id="teacherPage" style="display:none;">
+  <h2>Teacher Dashboard</h2>
+  <div class="glass-card">
+    <input type="text" id="teacherName" placeholder="Enter your name">
+    <button class="primary" onclick="setTeacherLocation()">Set Location</button>
+    <p id="teacherLocDisplay">Location not set</p>
+    <button class="primary" onclick="generateOTP()">Generate OTP</button>
+    <p id="currentOTP">OTP not generated</p>
+  </div>
+  <button class="secondary" onclick="backToRole()">Back</button>
+</div>
+
+<!-- Student Page -->
+<div class="container" id="studentPage" style="display:none;">
+  <h2>Student Dashboard</h2>
+  <div class="glass-card">
+    <input type="text" id="studentName" placeholder="Enter your name">
+    <button class="primary" onclick="startCamera()">Turn On Camera</button>
+    <video id="video" autoplay></video>
+    <button class="primary" onclick="startVoiceRecognition()">Speak OTP/Code</button>
+    <p id="voiceResult">Voice OTP not verified</p>
+    <button class="primary" onclick="showFingerprintModal()">Fingerprint Scan (Demo)</button>
+    <button class="primary" onclick="checkLocationAndMark()">Mark Attendance</button>
+  </div>
+  <h3>Attendance Records</h3>
+  <table id="attendanceTable"><tr><th>Name</th><th>Status</th><th>Location Verified</th><th>Voice Verified</th><th>Time</th></tr></table>
+  <button class="secondary" onclick="backToRole()">Back</button>
+</div>
+
+<!-- Parent Page -->
+<div class="container" id="parentPage" style="display:none;">
+  <h2>Parent Dashboard</h2>
+  <div class="glass-card">
+    <input type="text" id="parentNumber" placeholder="Enter your phone number">
+    <button class="primary" onclick="sendParentOTP()">Send OTP</button>
+    <input type="text" id="parentOTP" placeholder="Enter OTP">
+    <button class="primary" onclick="verifyParentOTP()">Verify OTP</button>
+    <p id="parentVerifiedStatus"></p>
+    <div id="childDataForm" style="display:none;">
+      <input type="text" id="childName" placeholder="Enter Child Name">
+      <input type="text" id="childRoll" placeholder="Enter Roll No">
+      <button class="primary" onclick="fetchChildAttendance()">Fetch Attendance Timeline</button>
+      <div id="childAttendanceResult"></div>
+    </div>
+  </div>
+  <button class="secondary" onclick="backToRole()">Back</button>
+</div>
+
+<!-- Admin Page -->
+<div class="container" id="adminPage" style="display:none;">
+  <h2>Admin Dashboard</h2>
+  <h3>All Attendance Records (Students & Teachers)</h3>
+  <table id="adminTable"><tr><th>Name</th><th>Role</th><th>Status</th><th>Location Verified</th><th>Voice Verified</th><th>Time</th></tr></table>
+  <button class="secondary" onclick="backToRole()">Back</button>
+</div>
+
+<!-- Fingerprint Modal -->
+<div id="fingerprint-modal" class="modal">
+  <div class="modal-content" style="text-align:center;">
+    <span class="close-btn" onclick="closeModal('fingerprint-modal')">&times;</span>
+    <h2>Fingerprint Scan (Demo)</h2>
+    <img src="https://cdn-icons-png.flaticon.com/512/3062/3062634.png" style="width:90px;opacity:0.7;">
+    <p>Place your finger on the scanner...</p>
+    <button class="primary" onclick="fakeFingerprintSuccess()">Simulate Scan</button>
+    <p id="fingerprint-status" style="margin-top:14px;color:var(--accent-2);"></p>
+  </div>
+</div>
+
+<script>
+// Global Data
+let teacherLocation={lat:null,lng:null},currentOTP='',voiceVerified=false,parentOTP='',parentVerified=false;
+let attendanceRecords=[];
+
+// Role Navigation
+function showTeacher(){hideAll();document.getElementById('teacherPage').style.display='block';}
+function showStudent(){hideAll();document.getElementById('studentPage').style.display='block';}
+function showParent(){hideAll();document.getElementById('parentPage').style.display='block';}
+function showAdmin(){hideAll();document.getElementById('adminPage').style.display='block';updateAdminTable();}
+function backToRole(){hideAll();document.getElementById('roleSelect').style.display='block';}
+function hideAll(){['roleSelect','teacherPage','studentPage','parentPage','adminPage'].forEach(id=>document.getElementById(id).style.display='none');}
+
+// Teacher
+function setTeacherLocation(){navigator.geolocation.getCurrentPosition(p=>{teacherLocation.lat=p.coords.latitude;teacherLocation.lng=p.coords.longitude;document.getElementById('teacherLocDisplay').innerText=`Location set: (${teacherLocation.lat.toFixed(4)}, ${teacherLocation.lng.toFixed(4)})`;alert('✅ Location set!');});}
+function generateOTP(){const n=document.getElementById('teacherName').value;if(!n){alert('Enter teacher name!');return;}currentOTP=Math.floor(1000+Math.random()*9000).toString();let now=new Date();attendanceRecords.push({name:n,role:'Teacher',status:'Present',locationVerified:'Yes',voiceVerified:'Yes',time:now.toLocaleString()});document.getElementById('currentOTP').innerText="Current OTP: "+currentOTP;alert("OTP: "+currentOTP);}
+
+// Student
+function startCamera(){navigator.mediaDevices.getUserMedia({video:true,audio:false}).then(s=>document.getElementById('video').srcObject=s).catch(e=>alert(e));}
+function startVoiceRecognition(){const r=new(window.SpeechRecognition||window.webkitSpeechRecognition)();r.lang='en-US';r.start();r.onresult=e=>{const txt=e.results[0][0].transcript;voiceVerified=(txt.includes(currentOTP));document.getElementById('voiceResult').innerText=voiceVerified?'✅ OTP Verified':'❌ OTP Incorrect';alert(document.getElementById('voiceResult').innerText);};}
+function showFingerprintModal(){document.getElementById('fingerprint-modal').classList.add('active');}
+function closeModal(id){document.getElementById(id).classList.remove('active');}
+function fakeFingerprintSuccess(){document.getElementById('fingerprint-status').innerText='✅ Fingerprint matched!';setTimeout(()=>closeModal('fingerprint-modal'),1200);}
+function checkLocationAndMark(){navigator.geolocation.getCurrentPosition(p=>{const studentLoc={lat:p.coords.latitude,lng:p.coords.longitude};let dist=Math.sqrt(Math.pow(studentLoc.lat-teacherLocation.lat,2)+Math.pow(studentLoc.lng-teacherLocation.lng,2))*111000;if(dist>50){alert('❌ Not within class range!');return;}const name=document.getElementById('studentName').value;if(!name){alert('Enter student name!');return;}let now=new Date();attendanceRecords.push({name:name,role:'Student',status:'Present',locationVerified:'Yes',voiceVerified:voiceVerified?'Yes':'No',time:now.toLocaleString()});updateStudentTable();alert('✅ Attendance marked!');});}
+function updateStudentTable(){const t=document.getElementById('attendanceTable');t.innerHTML='<tr><th>Name</th><th>Status</th><th>Location Verified</th><th>Voice Verified</th><th>Time</th></tr>';attendanceRecords.filter(a=>a.role==='Student').forEach(r=>{let tr=t.insertRow();tr.insertCell(0).innerText=r.name;tr.insertCell(1).innerText=r.status;tr.insertCell(2).innerText=r.locationVerified;tr.insertCell(3).innerText=r.voiceVerified;tr.insertCell(4).innerText=r.time;});}
+
+// Parent
+function sendParentOTP(){parentOTP=Math.floor(1000+Math.random()*9000).toString();alert("Parent OTP: "+parentOTP);}
+function verifyParentOTP(){const val=document.getElementById('parentOTP').value;if(val===parentOTP){parentVerified=true;document.getElementById('parentVerifiedStatus').innerText='✅ Verified';document.getElementById('childDataForm').style.display='block';}else{alert('❌ Incorrect OTP');}}
+function fetchChildAttendance(){const name=document.getElementById('childName').value;if(!name){alert('Enter child name!');return;}const data=attendanceRecords.filter(a=>a.name===name);let div=document.getElementById('childAttendanceResult');div.innerHTML='';if(!data.length){div.innerText='No records found.';return;}data.forEach(r=>{div.innerHTML+=`<p>${r.time} | ${r.status} | Loc: ${r.locationVerified} | Voice: ${r.voiceVerified}</p>`;});}
+
+// Admin
+function updateAdminTable(){const t=document.getElementById('adminTable');t.innerHTML='<tr><th>Name</th><th>Role</th><th>Status</th><th>Location Verified</th><th>Voice Verified</th><th>Time</th></tr>';attendanceRecords.forEach(r=>{let tr=t.insertRow();tr.insertCell(0).innerText=r.name;tr.insertCell(1).innerText=r.role;tr.insertCell(2).innerText=r.status;tr.insertCell(3).innerText=r.locationVerified;tr.insertCell(4).innerText=r.voiceVerified;tr.insertCell(5).innerText=r.time;});}
+</script>
+</body>
+</html>

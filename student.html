@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #d8b4fe, #f9a8d4);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .top-bar {
+      background: #a855f7;
+      padding: 10px;
+      text-align: right;
+      width: 100%;
+    }
+    .logout-btn {
+      background: white;
+      color: #9333ea;
+      padding: 8px 15px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .logout-btn:hover {
+      background: #ddd;
+    }
+    h1 {
+      text-align: center;
+      color: #6b21a8;
+      margin: 20px;
+    }
+    .search-box {
+      margin: 20px;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    input {
+      padding: 10px;
+      margin: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 6px;
+      background: #a855f7;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #9333ea;
+    }
+    .result-box {
+      margin-top: 20px;
+      padding: 20px;
+      width: 300px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-align: left;
+    }
+    .not-found {
+      color: red;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 🔹 Home Button -->
+  <div class="top-bar">
+    <a href="login.html" class="logout-btn">🏠 Home / Logout</a>
+  </div>
+
+  <h1>Student Dashboard</h1>
+
+  <!-- 🔹 Roll No Input -->
+  <div class="search-box">
+    <input type="text" id="rollInput" placeholder="Enter Roll Number">
+    <button onclick="getStudent()">Check Attendance</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    function getStudent() {
+      let roll = document.getElementById("rollInput").value;
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let student = students.find(s => s.roll === roll);
+      let resultBox = document.getElementById("result");
+
+      if (student) {
+        resultBox.innerHTML = `
+          <div class="result-box">
+            <p><b>Roll No:</b> ${student.roll}</p>
+            <p><b>Name:</b> ${student.name}</p>
+            <p><b>Attendance:</b> ${student.attendance}%</p>
+            <p><b>Reward:</b> ${student.reward ? student.reward : "—"}</p>
+          </div>
+        `;
+      } else {
+        resultBox.innerHTML = `<p class="not-found">❌ No record found for Roll No: ${roll}</p>`;
+      }
+    }
+  </script>
+
+</body>
+</html>

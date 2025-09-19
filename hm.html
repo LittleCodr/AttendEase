@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leave Management System</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#93c5fd,#bfdbfe);
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .box {
+    background: #fff;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    width: 700px;
+  }
+  h2,h3 {
+    text-align: center;
+    color:#2563eb;
+  }
+  input,select,textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 15px;
+  }
+  button {
+    background:#2563eb;
+    color:#fff;
+    border:none;
+    padding:10px 20px;
+    border-radius:5px;
+    cursor:pointer;
+    margin-top:10px;
+  }
+  button:hover{background:#1e40af;}
+  .error{color:red;text-align:center;}
+  .request-card{
+    background:#f9fafb;
+    padding:15px;margin-top:10px;
+    border-left:5px solid #2563eb;
+    border-radius:5px;
+  }
+  .approved{border-left:5px solid #22c55e;background:#ecfdf5;}
+  .rejected{border-left:5px solid #ef4444;background:#fef2f2;}
+  .buttons{margin-top:10px;}
+  .approve-btn,.reject-btn{
+    border:none;padding:6px 12px;border-radius:5px;cursor:pointer;margin-right:5px;font-size:14px;
+  }
+  .approve-btn{background:#22c55e;color:#fff;}
+  .approve-btn:hover{background:#16a34a;}
+  .reject-btn{background:#ef4444;color:#fff;}
+  .reject-btn:hover{background:#b91c1c;}
+</style>
+</head>
+<body>
+
+<!-- Login Box -->
+<div class="box" id="loginBox">
+  <h2>Login</h2>
+  <select id="role">
+    <option value="admin">Admin</option>
+    <option value="teacher">Teacher</option>
+    <option value="student">Student</option>
+  </select>
+  <input type="text" id="userid" placeholder="Enter ID">
+  <input type="password" id="password" placeholder="Enter Password">
+  <button onclick="login()">Login</button>
+  <div class="error" id="error"></div>
+</div>
+
+<!-- Main Box -->
+<div class="box" id="mainBox" style="display:none;">
+  <h2>Leave Management System</h2>
+  <p style="text-align:center;">Logged in as <b><span id="currentRole"></span></b> 
+  <button onclick="logout()">Logout</button></p>
+
+  <!-- Leave Form Section -->
+  <div id="leaveFormSection">
+    <h3>Submit Leave Application</h3>
+    <form id="leaveForm">
+      <input type="text" id="studentName" placeholder="Your Name" required>
+      <textarea id="leaveReason" placeholder="Reason for Leave" rows="3" required></textarea>
+      <select id="leaveDays" required>
+        <option value="">Select Days</option>
+        <option value="1">1 Day</option>
+        <option value="2">2 Days</option>
+        <option value="3">3 Days</option>
+        <option value="More">More than 3 Days</option>
+      </select>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+
+  <!-- Applications -->
+  <h3>All Leave Applications</h3>
+  <div id="requestList"></div>
+</div>
+
+<script>
+  // Credentials
+  const credentials={
+    admin:{id:"admin123",password:"adminpass"},
+    teacher:{id:"teacher123",password:"teacherpass"},
+    student:{id:"student123",password:"studentpass"}
+  };
+
+  let currentRole=null;
+  let leaveApplications=[]; // store all leave applications
+
+  function login(){
+    const role=document.getElementById("role").value;
+    const uid=document.getElementById("userid").value;
+    const pass=document.getElementById("password").value;
+    const err=document.getElementById("error");
+    if(uid===credentials[role].id && pass===credentials[role].password){
+      currentRole=role;
+      document.getElementById("loginBox").style.display="none";
+      document.getElementById("mainBox").style.display="block";
+      document.getElementById("currentRole").textContent=currentRole.toUpperCase();
+      // admin को form नहीं दिखेगा
+      if(currentRole==="admin"){
+        document.getElementById("leaveFormSection").style.display="none";
+      } else {
+        document.getElementById("leaveFormSection").style.display="block";
+      }
+      renderApplications();
+    } else {
+      err.textContent="❌ Invalid ID or Password";
+    }
+  }
+
+  function logout(){
+    currentRole=null;
+    document.getElementById("loginBox").style.display="block";
+    document.getElementById("mainBox").style.display="none";
+    document.getElementById("userid").value="";
+    document.getElementById("password").value="";
+  }
+
+  document.getElementById("leaveForm").addEventListener("submit",function(e){
+    e.preventDefault();
+    const name=document.getElementById("studentName").value;
+    const reason=document.getElementById("leaveReason").value;
+    const days=document.getElementById("leaveDays").value;
+    // push to array
+    leaveApplications.push({
+      id:Date.now(),
+      name:name,
+      reason:reason,
+      days:days,
+      status:"pending",
+      submittedBy:currentRole // कौन भेज रहा है
+    });
+    this.reset();
+    renderApplications();
+  });
+
+  function renderApplications(){
+    const container=document.getElementById("requestList");
+    container.innerHTML="";
+    leaveApplications.forEach(app=>{
+      const card=document.createElement("div");
+      card.className="request-card";
+      if(app.status==="approved")card.classList.add("approved");
+      if(app.status==="rejected")card.classList.add("rejected");
+      card.innerHTML=`<b>${app.name}</b> (${app.submittedBy}) requested <b>${app.days}</b> day(s)<br>Reason: ${app.reason}<br>Status: <b>${app.status}</b>`;
+      // Approve / Reject logic
+      if(currentRole==="admin" || currentRole==="teacher"){
+        // admin and teacher both can approve/reject only if pending
+        if(app.status==="pending"){
+          // teacher केवल student की application approve/reject कर सके
+          if(currentRole==="admin" || (currentRole==="teacher" && app.submittedBy==="student")){
+            const btns=document.createElement("div");
+            btns.className="buttons";
+            const approve=document.createElement("button");
+            approve.className="approve-btn";
+            approve.textContent="Approve";
+            approve.onclick=()=>updateStatus(app.id,"approved");
+            const reject=document.createElement("button");
+            reject.className="reject-btn";
+            reject.textContent="Reject";
+            reject.onclick=()=>updateStatus(app.id,"rejected");
+            btns.appendChild(approve);
+            btns.appendChild(reject);
+            card.appendChild(btns);
+          }
+        }
+      }
+      container.appendChild(card);
+    });
+  }
+
+  function updateStatus(id,status){
+    leaveApplications=leaveApplications.map(a=>{
+      if(a.id===id)a.status=status;
+      return a;
+    });
+    renderApplications();
+  }
+</script>
+
+</body>
+</html>

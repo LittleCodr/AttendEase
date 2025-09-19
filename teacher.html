@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Teacher Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #bfdbfe, #93c5fd);
+      margin: 0;
+      padding: 0;
+    }
+    .top-bar {
+      background: #2563eb;
+      padding: 10px;
+      text-align: right;
+    }
+    .logout-btn {
+      background: white;
+      color: #1e40af;
+      padding: 8px 15px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .logout-btn:hover { background: #ddd; }
+    h1 {
+      text-align: center;
+      color: #1e3a8a;
+      margin: 20px;
+    }
+    .search-box {
+      text-align: center;
+      margin: 20px;
+    }
+    input {
+      padding: 10px;
+      margin: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 2px;
+    }
+    button:hover { background: #1d4ed8; }
+    table {
+      width: 90%;
+      margin: 20px auto;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background: #2563eb;
+      color: white;
+    }
+    tr:nth-child(even) { background: #eff6ff; }
+    .summary-box {
+      width: 90%;
+      margin: 20px auto;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .summary-box h3 {
+      margin-bottom: 10px;
+      color: #1e3a8a;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 🔹 Top Bar -->
+  <div class="top-bar">
+    <a href="login.html" class="logout-btn">🏠 Home / Logout</a>
+  </div>
+
+  <h1>Teacher Dashboard</h1>
+
+  <!-- 🔹 Search Box -->
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search by Roll No or Name">
+    <button onclick="searchStudent()">Search</button>
+    <button onclick="showAll()">Show All</button>
+    <button onclick="filterAbove75()">Above 75%</button>
+    <button onclick="filterBelow75()">Below 75%</button>
+  </div>
+
+  <!-- 🔹 Students Table -->
+  <table id="studentTable">
+    <thead>
+      <tr>
+        <th>Roll No</th>
+        <th>Name</th>
+        <th>Attendance %</th>
+        <th>Reward</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- 🔹 Summary -->
+  <div class="summary-box" id="summary"></div>
+
+  <script>
+    // Dummy data for first time use
+    if (!localStorage.getItem("students")) {
+      const sample = [
+        { roll: "101", name: "Amit", attendance: 80, reward: null },
+        { roll: "102", name: "Priya", attendance: 95, reward: null },
+        { roll: "103", name: "Rohan", attendance: 60, reward: null }
+      ];
+      localStorage.setItem("students", JSON.stringify(sample));
+    }
+
+    function loadStudents(filter = null) {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let tableBody = document.querySelector("#studentTable tbody");
+      tableBody.innerHTML = "";
+
+      let filtered = students;
+      if (filter === "above75") filtered = students.filter(s => s.attendance >= 75);
+      if (filter === "below75") filtered = students.filter(s => s.attendance < 75);
+
+      filtered.forEach((stu) => {
+        let row = `<tr>
+          <td>${stu.roll}</td>
+          <td>${stu.name}</td>
+          <td>${stu.attendance}%</td>
+          <td>${stu.reward ? stu.reward : "—"}</td>
+          <td>
+            <button onclick="present('${stu.roll}')">Present</button>
+            <button onclick="absent('${stu.roll}')">Absent</button>
+            <button onclick="grantReward('${stu.roll}')">Grant Reward</button>
+            <button onclick="removeReward('${stu.roll}')">Remove Reward</button>
+          </td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+
+      showSummary(students);
+    }
+
+    function searchStudent() {
+      let query = document.getElementById("searchInput").value.toLowerCase();
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let result = students.filter(s => s.roll.toLowerCase() === query || s.name.toLowerCase().includes(query));
+      let tableBody = document.querySelector("#studentTable tbody");
+      tableBody.innerHTML = "";
+
+      result.forEach(stu => {
+        let row = `<tr>
+          <td>${stu.roll}</td>
+          <td>${stu.name}</td>
+          <td>${stu.attendance}%</td>
+          <td>${stu.reward ? stu.reward : "—"}</td>
+          <td>
+            <button onclick="present('${stu.roll}')">Present</button>
+            <button onclick="absent('${stu.roll}')">Absent</button>
+            <button onclick="grantReward('${stu.roll}')">Grant Reward</button>
+            <button onclick="removeReward('${stu.roll}')">Remove Reward</button>
+          </td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    function showAll() { loadStudents(); }
+    function filterAbove75() { loadStudents("above75"); }
+    function filterBelow75() { loadStudents("below75"); }
+
+    function grantReward(roll) {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let student = students.find(s => s.roll === roll);
+      if (student) {
+        if (student.attendance >= 98) student.reward = "10 Extra Marks";
+        else if (student.attendance >= 90) student.reward = "5 Extra Marks";
+        else if (student.attendance >= 80) student.reward = "2 Extra Marks";
+        else student.reward = "No Reward";
+      }
+      localStorage.setItem("students", JSON.stringify(students));
+      loadStudents();
+    }
+
+    function removeReward(roll) {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let student = students.find(s => s.roll === roll);
+      if (student) student.reward = null;
+      localStorage.setItem("students", JSON.stringify(students));
+      loadStudents();
+    }
+
+    // 🔹 Present Function
+    function present(roll) {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let student = students.find(s => s.roll === roll);
+      if (student) {
+        student.attendance = Math.min(100, student.attendance + 1); // increase attendance
+      }
+      localStorage.setItem("students", JSON.stringify(students));
+      loadStudents();
+    }
+
+    // 🔹 Absent Function
+    function absent(roll) {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let student = students.find(s => s.roll === roll);
+      if (student) {
+        student.attendance = Math.max(0, student.attendance - 1); // decrease attendance
+      }
+      localStorage.setItem("students", JSON.stringify(students));
+      loadStudents();
+    }
+
+    function showSummary(students) {
+      if (students.length === 0) {
+        document.getElementById("summary").innerHTML = "<p>No data available.</p>";
+        return;
+      }
+
+      let max = Math.max(...students.map(s => s.attendance));
+      let min = Math.min(...students.map(s => s.attendance));
+
+      let toppers = students.filter(s => s.attendance === max);
+      let lowest = students.filter(s => s.attendance === min);
+
+      let summaryHtml = "<h3>📊 Summary</h3>";
+      summaryHtml += `<p><b>Highest Attendance (${max}%):</b> ${toppers.map(s => s.name + " (" + s.roll + ")").join(", ")}</p>`;
+      summaryHtml += `<p><b>Lowest Attendance (${min}%):</b> ${lowest.map(s => s.name + " (" + s.roll + ")").join(", ")}</p>`;
+
+      document.getElementById("summary").innerHTML = summaryHtml;
+    }
+
+    // load on start
+    loadStudents();
+  </script>
+
+</body>
+</html>

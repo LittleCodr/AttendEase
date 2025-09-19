@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Meet</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      background: #f8f9fa;
+      color: #333;
+    }
+
+    header {
+      background: #fff;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .logo {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1a73e8;
+    }
+
+    .time {
+      font-size: 16px;
+      color: #555;
+    }
+
+    .home-container {
+      text-align: center;
+      margin-top: 80px;
+    }
+
+    .home-container h2 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .home-container p {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .meeting-options {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .meeting-options input {
+      padding: 10px;
+      width: 200px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .btn {
+      background: #1a73e8;
+      color: #fff;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background: #1669c1;
+    }
+
+    .join-btn {
+      background: #34a853;
+    }
+
+    .meeting-code {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #333;
+    }
+
+    .meeting-room {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .video-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    .video-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    video {
+      width: 320px;
+      height: 240px;
+      background: #000;
+      border-radius: 8px;
+    }
+
+    /* Below video action buttons */
+    .below-video-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .controls button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background: #1a73e8;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls .leave {
+      background: #ea4335;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Mini Meet</div>
+    <div class="time" id="current-time"></div>
+  </header>
+
+  <main>
+    <!-- Home Page -->
+    <div class="home-container" id="home-container">
+      <h2>Video calls and meetings for everyone</h2>
+      <p>Connect, collaborate and celebrate from anywhere with Mini Meet</p>
+
+      <div class="meeting-options">
+        <button id="create-meeting" class="btn">+ New Meeting</button>
+        <input type="text" id="join-code" placeholder="Enter a code or link">
+        <button id="join-meeting" class="btn join-btn">Join</button>
+      </div>
+
+      <div id="generated-code" class="meeting-code"></div>
+    </div>
+
+    <!-- Meeting Room -->
+    <div class="meeting-room" id="meeting-room" style="display:none;">
+      <div class="video-container">
+        
+        <!-- Local Video Section -->
+        <div class="video-box">
+          <video id="local-video" autoplay muted playsinline></video>
+          <!-- Two new buttons below local video -->
+          <div class="below-video-buttons">
+            <button class="btn" id="generate-quiz-btn">Generate Quiz</button>
+            <button class="btn join-btn" id="mark-attendance-btn">Mark Attendance</button>
+          </div>
+        </div>
+
+        <!-- Remote Video Section -->
+        <div class="video-box">
+          <video id="remote-video" autoplay playsinline></video>
+          <!-- New Answer Quiz Button -->
+          <div class="below-video-buttons">
+            <button class="btn" id="answer-quiz-btn">Answer Quiz</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="controls">
+        <button id="mute-btn">Mute</button>
+        <button id="camera-btn">Camera Off</button>
+        <button id="leave-btn" class="leave">Leave</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Elements
+    const currentTime = document.getElementById('current-time');
+    const createMeetingBtn = document.getElementById('create-meeting');
+    const joinMeetingBtn = document.getElementById('join-meeting');
+    const joinCodeInput = document.getElementById('join-code');
+    const generatedCodeDiv = document.getElementById('generated-code');
+    const homeContainer = document.getElementById('home-container');
+    const meetingRoom = document.getElementById('meeting-room');
+
+    const localVideo = document.getElementById('local-video');
+    const remoteVideo = document.getElementById('remote-video');
+
+    const muteBtn = document.getElementById('mute-btn');
+    const cameraBtn = document.getElementById('camera-btn');
+    const leaveBtn = document.getElementById('leave-btn');
+
+    const generateQuizBtn = document.getElementById('generate-quiz-btn');
+    const markAttendanceBtn = document.getElementById('mark-attendance-btn');
+    const answerQuizBtn = document.getElementById('answer-quiz-btn');
+
+    let localStream;
+    let peerConnection;
+    let meetingCode = "";
+
+    // Update current time
+    setInterval(() => {
+      const now = new Date();
+      currentTime.textContent = now.toLocaleTimeString();
+    }, 1000);
+
+    // Generate random meeting code
+    function generateMeetingCode() {
+      return Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+
+    // Create meeting
+    createMeetingBtn.addEventListener('click', () => {
+      meetingCode = generateMeetingCode();
+      generatedCodeDiv.textContent = `Your Meeting Code: ${meetingCode}`;
+      alert("Share this code with students: " + meetingCode);
+    });
+
+    // Join meeting
+    joinMeetingBtn.addEventListener('click', async () => {
+      const code = joinCodeInput.value.trim();
+      if (code === "") {
+        alert("Please enter a meeting code.");
+        return;
+      }
+      meetingCode = code;
+      startMeeting();
+    });
+
+    // Start meeting
+    async function startMeeting() {
+      homeContainer.style.display = 'none';
+      meetingRoom.style.display = 'block';
+
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+
+      // WebRTC basic setup
+      const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+      peerConnection = new RTCPeerConnection(config);
+
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      console.log("Meeting started with code:", meetingCode);
+    }
+
+    // Mute/Unmute
+    muteBtn.addEventListener('click', () => {
+      const audioTrack = localStream.getAudioTracks()[0];
+      audioTrack.enabled = !audioTrack.enabled;
+      muteBtn.textContent = audioTrack.enabled ? "Mute" : "Unmute";
+    });
+
+    // Camera On/Off
+    cameraBtn.addEventListener('click', () => {
+      const videoTrack = localStream.getVideoTracks()[0];
+      videoTrack.enabled = !videoTrack.enabled;
+      cameraBtn.textContent = videoTrack.enabled ? "Camera Off" : "Camera On";
+    });
+
+    // Leave Meeting
+    leaveBtn.addEventListener('click', () => {
+      localStream.getTracks().forEach(track => track.stop());
+      if (peerConnection) peerConnection.close();
+      meetingRoom.style.display = 'none';
+      homeContainer.style.display = 'block';
+    });
+
+    // Generate Quiz Button Functionality
+    generateQuizBtn.addEventListener('click', () => {
+      alert("Generate Quiz button clicked!");
+      // Future implementation for quiz generation
+    });
+
+    // Mark Attendance Button Functionality
+    markAttendanceBtn.addEventListener('click', () => {
+      alert("Attendance marked successfully!");
+      // Future implementation for attendance marking
+    });
+
+    // Answer Quiz Button Functionality
+    answerQuizBtn.addEventListener('click', () => {
+      alert("Answer Quiz button clicked!");
+      // Future implementation for answering quiz
+    });
+  </script>
+</body>
+</html>

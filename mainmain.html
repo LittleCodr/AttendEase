@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AttentEase - Master Your Focus, Amplify Your Productivity</title>
+  <meta name="description" content="Transform scattered attention into laser-sharp focus with AttentEase. AI-powered productivity platform designed for modern professionals.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0b;
+      color: #fafafa;
+      line-height: 1.6;
+    }
+
+    /* Navigation */
+    .navbar {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(10, 10, 11, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #27272a;
+      z-index: 1000;
+    }
+    .nav-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 64px;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .logo-text {
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: #fafafa;
+      text-decoration: none;
+      transition: color 0.3s ease;
+      cursor: pointer;
+    }
+    .nav-links a:hover {
+      color: #6366f1;
+    }
+    .nav-buttons {
+      display: flex;
+      gap: 16px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: #fafafa;
+    }
+    .btn-ghost:hover {
+      background: #27272a;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      color: white;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+    }
+    .btn-lg {
+      padding: 16px 32px;
+      font-size: 18px;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #3f3f46;
+      color: #fafafa;
+    }
+    .btn-outline:hover {
+      background: #27272a;
+    }
+
+    /* Hero Section */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: linear-gradient(180deg, #0a0a0b, #111113);
+      text-align: center;
+      padding: 80px 24px 0;
+    }
+    .hero-content h1 {
+      font-size: clamp(3rem, 8vw, 7rem);
+      font-weight: bold;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #6366f1, #a855f7, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      color: #a1a1aa;
+      margin-bottom: 16px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero-description {
+      font-size: 18px;
+      color: #a1a1aa;
+      margin-bottom: 48px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 64px;
+    }
+    @media (min-width: 640px) {
+      .hero-buttons {
+        flex-direction: row;
+        justify-content: center;
+      }
+    }
+
+    /* Feature Section */
+    .features-container {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 60px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .feature-card {
+      background: #111113;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 24px;
+      flex: 1 1 250px;
+      text-align: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 0 20px rgba(99,102,241,0.4);
+    }
+    .feature-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+    .feature-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .feature-desc {
+      font-size: 16px;
+      color: #a1a1aa;
+    }
+
+    /* Section Common Style */
+    section h2 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    section p {
+      color: #a1a1aa;
+      font-size: 18px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* Footer */
+    .footer {
+      background: #18181b;
+      border-top: 1px solid #27272a;
+      padding: 48px 24px;
+    }
+    .footer-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 32px;
+      margin-bottom: 32px;
+    }
+    .footer-section h3 {
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .footer-section ul {
+      list-style: none;
+    }
+    .footer-section ul li {
+      margin-bottom: 8px;
+    }
+    .footer-section ul li a {
+      color: #a1a1aa;
+      text-decoration: none;
+      transition: color 0.3s ease;
+      cursor: pointer;
+    }
+    .footer-section ul li a:hover {
+      color: #6366f1;
+    }
+    .footer-bottom {
+      border-top: 1px solid #27272a;
+      padding-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-content">
+      <div class="logo">
+        <div class="logo-icon">AE</div>
+        <span class="logo-text">AttendEase</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" id="exploreUsLink" class="btn btn-primary">Dashboard</a></li>
+        <li><a href="#about" class="btn btn-primary">About</a></li>
+        <!-- Analytics updated to open analyt.html -->
+        <li><a href="anatyl.html" class="btn btn-primary">Analytics</a></li>
+      </ul>
+      <div class="nav-buttons">
+        <a href="#signin" class="btn btn-primary">Sign In</a>
+        <a href="#signup" class="btn btn-primary">Sign Up</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>AttendEase</h1>
+      <p class="hero-subtitle">Master Your Focus, Amplify Your Productivity</p>
+      <p class="hero-description">
+        Transform scattered attention into laser-sharp focus with our intelligent productivity platform designed for the modern mind.
+      </p>
+      <div class="hero-buttons">
+        <button id="startJourneyBtn" class="btn btn-primary btn-lg">Start Your Journey</button>
+        <a href="#features" class="btn btn-outline btn-lg">Our Features</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature Section -->
+  <section id="features">
+    <h2>Our Features</h2>
+    <div class="features-container">
+
+      <!-- Online Attendance -->
+      <div class="feature-card" onclick="window.location.href='a.html'">
+        <div class="feature-icon">🌐</div>
+        <div class="feature-title">Online Attendance</div>
+        <div class="feature-desc">
+          Mark and manage attendance in real-time with instant updates and tracking.
+        </div>
+      </div>
+
+      <!-- Offline Attendance -->
+      <div class="feature-card" onclick="window.location.href='main.html'">
+        <div class="feature-icon">📴</div>
+        <div class="feature-title">Offline Attendance</div>
+        <div class="feature-desc">
+          Record attendance without internet and sync automatically when you're back online.
+        </div>
+      </div>
+
+      <!-- Leave Application -->
+      <div class="feature-card" onclick="window.location.href='hm.html'">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Leave Application</div>
+        <div class="feature-desc">
+          Submit, track, and approve leave requests seamlessly for students, teachers, and admins.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section id="about">
+    <h2>About AttentEase</h2>
+    <p>Our platform connects teachers, students, parents and administrators in one space, making communication and participation simple and smooth.</p>
+  </section>
+
+  <!-- Contact Section -->
+  <section id="contact">
+    <h2>Contact Us</h2>
+    <p>
+      📞 +91 9257404015 <br>
+      📞 +91 9717017909 <br>
+      📞 +91 8279690362 <br>
+      📞 +91 9258935840 <br>
+      📞 +91 9053014027 <br>
+      📞 +91 9996061229 <br>
+      📧 info@sikshasetu.org
+    </p>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>Product</h3>
+        <ul>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 AttentEase. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scroll to features section
+    document.getElementById('startJourneyBtn').addEventListener('click', function() {
+      document.getElementById('features').scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    });
+
+    // Dashboard link redirect
+    document.getElementById('exploreUsLink').addEventListener('click', function(e) {
+      e.preventDefault();
+      window.location.href = 'login.html';
+    });
+  </script>
+</body>
+</html>

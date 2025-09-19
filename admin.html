@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #fef9c3, #fde68a);
+      margin: 0;
+      padding: 0;
+    }
+    .top-bar {
+      background: #f59e0b;
+      padding: 10px;
+      text-align: right;
+    }
+    .logout-btn {
+      background: white;
+      color: #b45309;
+      padding: 8px 15px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .logout-btn:hover {
+      background: #ddd;
+    }
+    h1 {
+      text-align: center;
+      color: #92400e;
+      margin-top: 20px;
+    }
+    .form-box {
+      width: 80%;
+      margin: 20px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    input {
+      padding: 10px;
+      margin: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 6px;
+      background: #f59e0b;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #d97706;
+    }
+    table {
+      width: 90%;
+      margin: 20px auto;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background: #f59e0b;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background: #fff7ed;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 🔹 Top Bar -->
+  <div class="top-bar">
+    <a href="login.html" class="logout-btn">🏠 Home / Logout</a>
+  </div>
+
+  <h1>Admin Dashboard</h1>
+
+  <!-- 🔹 Add Student Form -->
+  <div class="form-box">
+    <input type="text" id="roll" placeholder="Roll No">
+    <input type="text" id="name" placeholder="Name">
+    <input type="number" id="attendance" placeholder="Attendance %">
+    <button onclick="addStudent()">Add Student</button>
+  </div>
+
+  <!-- 🔹 Students Table -->
+  <table id="studentTable">
+    <thead>
+      <tr>
+        <th>Roll No</th>
+        <th>Name</th>
+        <th>Attendance %</th>
+        <th>Reward</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    function loadStudents() {
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+      let tableBody = document.querySelector("#studentTable tbody");
+      tableBody.innerHTML = "";
+
+      students.forEach(stu => {
+        let row = `<tr>
+          <td>${stu.roll}</td>
+          <td>${stu.name}</td>
+          <td>${stu.attendance}%</td>
+          <td>${stu.reward ? stu.reward : "—"}</td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    function addStudent() {
+      let roll = document.getElementById("roll").value;
+      let name = document.getElementById("name").value;
+      let attendance = document.getElementById("attendance").value;
+
+      if (!roll || !name || !attendance) {
+        alert("Please fill all fields!");
+        return;
+      }
+
+      let students = JSON.parse(localStorage.getItem("students")) || [];
+
+      // Prevent duplicate roll numbers
+      let exists = students.find(s => s.roll === roll);
+      if (exists) {
+        alert("Roll number already exists!");
+        return;
+      }
+
+      students.push({ roll, name, attendance: parseInt(attendance), reward: null });
+      localStorage.setItem("students", JSON.stringify(students));
+      loadStudents();
+    }
+
+    // Load on startup
+    loadStudents();
+  </script>
+
+</body>
+</html>

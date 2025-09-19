@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #a78bfa, #f0abfc);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+      width: 350px;
+      text-align: center;
+    }
+    h2 {
+      color: #6b21a8;
+      margin-bottom: 20px;
+    }
+    select, input {
+      width: 90%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    button {
+      width: 95%;
+      padding: 12px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      background: #8b5cf6;
+      color: white;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #6d28d9;
+    }
+    .error {
+      color: red;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-box">
+    <h2>Login</h2>
+    <select id="role">
+      <option value="admin">Admin</option>
+      <option value="teacher">Teacher</option>
+      <option value="student">Student</option>
+    </select>
+    <input type="text" id="userid" placeholder="Enter ID">
+    <input type="password" id="password" placeholder="Enter Password">
+    <button onclick="login()">Login</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    // Predefined credentials
+    const credentials = {
+      admin: { id: "admin123", password: "adminpass" },
+      teacher: { id: "teacher123", password: "teacherpass" },
+      student: { id: "student123", password: "studentpass" }
+    };
+
+    function login() {
+      const role = document.getElementById("role").value;
+      const userId = document.getElementById("userid").value;
+      const pass = document.getElementById("password").value;
+      const error = document.getElementById("error");
+
+      if (userId === credentials[role].id && pass === credentials[role].password) {
+        if (role === "admin") {
+          window.location.href = "admin.html";
+        } else if (role === "teacher") {
+          window.location.href = "teacher.html";
+        } else {
+          window.location.href = "student.html";
+        }
+      } else {
+        error.textContent = "❌ Invalid ID or Password!";
+      }
+    }
+  </script>
+
+</body>
+</html>
