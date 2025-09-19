@@ -206,6 +206,40 @@
     </div>
   </section>
 
+  <!-- Announcements (Firestore) -->
+  <section id="announcements" class="reveal">
+    <h2>Announcements</h2>
+    <div id="announcementsList" class="features-container" style="grid-template-columns: repeat(auto-fit,minmax(320px,1fr));"></div>
+  </section>
+
+  <!-- Mission Section -->
+  <section id="mission" class="mission reveal">
+    <span class="mission-icon">⭐</span>
+    <h2>Our Mission</h2>
+    <p style="max-width:900px;margin-top:8px">We help teams transform scattered attention into laser focus through delightful design, real‑time visibility, and humane nudges — so productivity feels effortless.</p>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="how-works reveal">
+    <h2>How It Works</h2>
+    <div class="how-steps" style="margin-top:16px">
+      <div class="how-step card" data-icon="1️⃣"><h3>Capture</h3><p>Mark attendance online or offline, with reliability and speed.</p></div>
+      <div class="how-step card" data-icon="2️⃣"><h3>Analyze</h3><p>Visualize engagement, late arrivals, and patterns at a glance.</p></div>
+      <div class="how-step card" data-icon="3️⃣"><h3>Act</h3><p>Send reminders, approve leave, and reward consistency — fast.</p></div>
+    </div>
+  </section>
+
+  <!-- Partners -->
+  <section id="partners" class="partners reveal">
+    <h2>Trusted By</h2>
+    <div class="features-container" style="align-items:center">
+      <div class="card"><img src="https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg" alt="Google" style="max-height:32px;filter:grayscale(1);opacity:.9"></div>
+      <div class="card"><img src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" alt="Amazon" style="max-height:28px;filter:grayscale(1);opacity:.9"></div>
+      <div class="card"><img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style="max-height:28px;filter:grayscale(1);opacity:.9"></div>
+      <div class="card"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix" style="max-height:24px;filter:grayscale(1);opacity:.9"></div>
+    </div>
+  </section>
+
   <!-- Feature Section -->
   <section id="features">
     <h2>Our Features</h2>
@@ -244,6 +278,41 @@
   <section id="about" class="about reveal">
     <h2>About AttentEase</h2>
     <p>Our platform connects teachers, students, parents and administrators in one space, making communication and participation simple and smooth.</p>
+  </section>
+
+  <!-- Testimonials -->
+  <section id="testimonials" class="reveal">
+    <h2>What People Say</h2>
+    <div class="testimonial-cards" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+      <div class="testimonial card" style="flex:1 1 280px;min-width:260px">
+        <p>“AttendEase cleaned up our chaotic roll‑calls. Teachers finally have time to teach.”</p>
+        <div style="margin-top:10px;color:#cbd5e1">— Priya, Dept. Head</div>
+      </div>
+      <div class="testimonial card" style="flex:1 1 280px;min-width:260px">
+        <p>“Insights on late arrivals helped us change bus timings. Attendance jumped 9%.”</p>
+        <div style="margin-top:10px;color:#cbd5e1">— Rahul, Admin</div>
+      </div>
+      <div class="testimonial card" style="flex:1 1 280px;min-width:260px">
+        <p>“As a student, I love the calm UI and reminders. Zero friction.”</p>
+        <div style="margin-top:10px;color:#cbd5e1">— Aditi, Student</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Blog (Firestore) -->
+  <section id="blog" class="reveal">
+    <h2>Latest from the Blog</h2>
+    <div id="blogGrid" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:12px"></div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="faq reveal">
+    <h2>FAQ</h2>
+    <div class="faq-list" style="margin-top:12px">
+      <div class="faq-item"><div class="faq-q">Does it work offline? <span class="arrow">▶</span></div><div class="faq-a"><p>Yes — data syncs when you’re back online.</p></div></div>
+      <div class="faq-item"><div class="faq-q">Is attendance secure? <span class="arrow">▶</span></div><div class="faq-a"><p>All writes are authenticated with Firebase. You can set granular Firestore rules.</p></div></div>
+      <div class="faq-item"><div class="faq-q">Can I export reports? <span class="arrow">▶</span></div><div class="faq-a"><p>Yes, check Analytics for detailed exports.</p></div></div>
+    </div>
   </section>
 
   <!-- Contact Section -->
@@ -560,7 +629,7 @@
             <span style="margin-left:8px;vertical-align:middle;">${name}</span>
             <button id="logoutBtn" class="btn" style="margin-left:10px;">Log Out</button>
           </div>`;
-        $('#logoutBtn')?.addEventListener('click', async () => { try { await window.auth.signOut(); showAlert('Logged out'); } catch(e){ showAlert('Error logging out','error'); } });
+        $('#logoutBtn')?.addEventListener('click', async () => { try { await window.signOutUser(); } catch(e){ showAlert('Error logging out','error'); } });
       } else {
         area.innerHTML = `
           <a href="#signin" class="btn btn-secondary">Sign In</a>
@@ -577,6 +646,48 @@
     // Attach auth state once Firebase has loaded
     if (window.auth) { window.auth.onAuthStateChanged(setAuthUI); } else { setAuthUI(null); }
     window.addEventListener('load', () => { if (window.auth) window.auth.onAuthStateChanged(setAuthUI); });
+
+    // Firestore-powered content (public reads recommended): announcements and blog
+    async function loadAnnouncements(){
+      try{
+        if(!window.db) return;
+        const wrap = document.getElementById('announcementsList'); if(!wrap) return;
+        const snap = await db.collection('public_announcements').orderBy('createdAt','desc').limit(6).get();
+        if (snap.empty) { wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+        wrap.innerHTML = '';
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const el = document.createElement('div'); el.className='card';
+          el.innerHTML = `<h3 style="margin-bottom:6px">${d.title||'Untitled'}</h3><p class="feature-desc">${d.message||''}</p>`;
+          wrap.appendChild(el);
+        });
+      }catch(e){ /* silent */ }
+    }
+
+    async function loadBlog(){
+      try{
+        if(!window.db) return;
+        const grid = document.getElementById('blogGrid'); if(!grid) return;
+        const snap = await db.collection('blog_posts').orderBy('createdAt','desc').limit(6).get();
+        if (snap.empty) { grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+        grid.innerHTML = '';
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const el = document.createElement('div'); el.className='blog-card card';
+          const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
+          el.innerHTML = `
+            <div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px">
+              <img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95">
+            </div>
+            <h3 style="margin-bottom:6px">${d.title||'New Post'}</h3>
+            <p class="feature-desc">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
+          `;
+          grid.appendChild(el);
+        });
+      }catch(e){ /* silent */ }
+    }
+
+    window.addEventListener('load', ()=>{ loadAnnouncements(); loadBlog(); });
   </script>
 </body>
 </html>
