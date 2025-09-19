@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #fef9c3, #fde68a);
+      background: linear-gradient(135deg, black , black;
       margin: 0;
       padding: 0;
     }
@@ -112,49 +112,96 @@
     <tbody></tbody>
   </table>
 
-  <script>
-    function loadStudents() {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let tableBody = document.querySelector("#studentTable tbody");
-      tableBody.innerHTML = "";
+  <!-- Firebase SDKs and shared scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
 
+  <!-- Firestore-powered Announcements and Blog (public read) -->
+  <section class="container-glass" style="max-width:1200px;margin:20px auto;padding:16px;border-radius:16px">
+    <div class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:10px">
+      <div class="card">
+        <h3>Announcements</h3>
+        <div id="annListAdmin" class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Latest from the Blog</h3>
+        <div id="blogListAdmin" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Realtime students via Firestore (fallback to localStorage)
+    let unsubStudents = null;
+    function renderStudents(students){
+      const tableBody = document.querySelector('#studentTable tbody');
+      tableBody.innerHTML = '';
       students.forEach(stu => {
-        let row = `<tr>
-          <td>${stu.roll}</td>
-          <td>${stu.name}</td>
-          <td>${stu.attendance}%</td>
-          <td>${stu.reward ? stu.reward : "—"}</td>
-        </tr>`;
-        tableBody.innerHTML += row;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${stu.roll}</td><td>${stu.name}</td><td>${stu.attendance}%</td><td>${stu.reward ? stu.reward : '—'}</td>`;
+        tableBody.appendChild(row);
       });
     }
 
-    function addStudent() {
-      let roll = document.getElementById("roll").value;
-      let name = document.getElementById("name").value;
-      let attendance = document.getElementById("attendance").value;
-
-      if (!roll || !name || !attendance) {
-        alert("Please fill all fields!");
-        return;
-      }
-
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-
-      // Prevent duplicate roll numbers
-      let exists = students.find(s => s.roll === roll);
-      if (exists) {
-        alert("Roll number already exists!");
-        return;
-      }
-
-      students.push({ roll, name, attendance: parseInt(attendance), reward: null });
-      localStorage.setItem("students", JSON.stringify(students));
-      loadStudents();
+    function subscribeStudents(){
+      try{
+        if(!window.db){ loadStudentsLocal(); return; }
+        unsubStudents && unsubStudents();
+        unsubStudents = db.collection('students').orderBy('roll')
+          .onSnapshot(snap => {
+            const list=[]; snap.forEach(d => list.push(d.data()));
+            if (!list.length) { loadStudentsLocal(); } else { renderStudents(list); }
+          }, _=>{ loadStudentsLocal(); });
+      }catch(_){ loadStudentsLocal(); }
     }
 
-    // Load on startup
-    loadStudents();
+    function loadStudentsLocal(){
+      let students = JSON.parse(localStorage.getItem('students')) || [];
+      renderStudents(students);
+    }
+
+    async function addStudent(){
+      const roll = document.getElementById('roll').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const attendance = parseInt(document.getElementById('attendance').value,10);
+      if (!roll || !name || Number.isNaN(attendance)) { alert('Please fill all fields!'); return; }
+      try{
+        if (window.db){
+          await db.collection('students').doc(roll).set({ roll, name, attendance, reward: null }, { merge:true });
+        } else {
+          // fallback
+          let students = JSON.parse(localStorage.getItem('students')) || [];
+          if (students.find(s=>s.roll===roll)) { alert('Roll number already exists!'); return; }
+          students.push({ roll, name, attendance, reward:null });
+          localStorage.setItem('students', JSON.stringify(students));
+          loadStudentsLocal();
+        }
+      }catch(e){ alert('Failed to add student'); }
+    }
+
+    // Realtime public feeds
+    window.addEventListener('load', ()=>{
+      subscribeStudents();
+      try{
+        if(window.db){
+          db.collection('public_announcements').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const wrap = document.getElementById('annListAdmin'); if(!wrap) return; wrap.innerHTML='';
+              if (snap.empty){ wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+              snap.forEach(doc=>{ const d=doc.data(); const el=document.createElement('div'); el.className='card'; el.innerHTML = `<h4 style="margin-bottom:6px">${d.title||'Untitled'}</h4><p class="small">${d.message||''}</p>`; wrap.appendChild(el); });
+            });
+          db.collection('blog_posts').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const grid = document.getElementById('blogListAdmin'); if(!grid) return; grid.innerHTML='';
+              if (snap.empty){ grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+              snap.forEach(doc=>{ const d=doc.data(); const el=document.createElement('div'); el.className='card'; const img=d.image||'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop'; el.innerHTML = `<div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px"><img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95"></div><h4 style="margin-bottom:6px">${d.title||'New Post'}</h4><p class="small">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>`; grid.appendChild(el); });
+            });
+        }
+      }catch(e){ /* silent */ }
+    });
   </script>
 
 </body>

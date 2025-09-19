@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Student Dashboard</title>
+  <link rel="stylesheet" href="ui.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -65,7 +66,7 @@
       margin-top: 20px;
       padding: 20px;
       width: 300px;
-      background: white;
+      background: black;
       border-radius: 10px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       text-align: left;
@@ -78,6 +79,8 @@
   </style>
 </head>
 <body>
+
+  <div class="bg-blob" aria-hidden="true"></div>
 
   <!-- 🔹 Home Button -->
   <div class="top-bar">
@@ -92,6 +95,64 @@
     <button onclick="getStudent()">Check Attendance</button>
     <div id="result"></div>
   </div>
+
+  <!-- Firebase SDKs (compat) and shared app scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+
+  <!-- Firestore-powered Announcements and Blog (public read) -->
+  <section class="container" style="max-width:1200px;margin:0 auto 24px auto;">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Announcements</h3>
+      <div id="annListStudent" class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>Latest from the Blog</h3>
+      <div id="blogListStudent" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px"></div>
+    </div>
+  </section>
+
+  <script>
+    // Load announcements and blog (public reads)
+    window.addEventListener('load', ()=>{
+      try{
+        if(window.db){
+          db.collection('public_announcements').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const wrap = document.getElementById('annListStudent'); if(!wrap) return;
+              wrap.innerHTML='';
+              if (snap.empty){ wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+              snap.forEach(doc=>{
+                const d=doc.data();
+                const el=document.createElement('div'); el.className='card';
+                el.innerHTML = `<h4 style="margin-bottom:6px">${d.title||'Untitled'}</h4><p class="small">${d.message||''}</p>`;
+                wrap.appendChild(el);
+              });
+            });
+          db.collection('blog_posts').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const grid = document.getElementById('blogListStudent'); if(!grid) return;
+              grid.innerHTML='';
+              if (snap.empty){ grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+              snap.forEach(doc=>{
+                const d=doc.data();
+                const el=document.createElement('div'); el.className='card';
+                const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
+                el.innerHTML = `
+                  <div style=\"overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px\">\n                    <img src=\"${img}\" alt=\"${d.title||'Post'}\" style=\"width:100%;display:block;opacity:.95\">\n                  </div>
+                  <h4 style=\"margin-bottom:6px\">${d.title||'New Post'}</h4>
+                  <p class=\"small\">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
+                `;
+                grid.appendChild(el);
+              });
+            });
+        }
+      }catch(e){ /* silent */ }
+    });
+  </script>
 
   <script>
     function getStudent() {

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mini Meet</title>
+  <link rel="stylesheet" href="ui.css">
   <style>
     * {
       margin: 0;
@@ -145,6 +146,7 @@
   </style>
 </head>
 <body>
+  <div class="bg-blob" aria-hidden="true"></div>
   <header>
     <div class="logo">Mini Meet</div>
     <div class="time" id="current-time"></div>
@@ -197,6 +199,66 @@
       </div>
     </div>
   </main>
+
+  <!-- Firebase SDKs (compat) and shared app scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+
+  <!-- Firestore-powered Announcements and Blog (public read) -->
+  <section class="container" style="max-width:1200px;margin:0 auto 24px auto;">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Announcements</h3>
+      <div id="annListMeet" class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>Latest from the Blog</h3>
+      <div id="blogListMeet" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px"></div>
+    </div>
+  </section>
+
+  <script>
+    // Load announcements and blog (public reads)
+    window.addEventListener('load', ()=>{
+      try{
+        if(window.db){
+          db.collection('public_announcements').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const wrap = document.getElementById('annListMeet'); if(!wrap) return;
+              wrap.innerHTML='';
+              if (snap.empty){ wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+              snap.forEach(doc=>{
+                const d=doc.data();
+                const el=document.createElement('div'); el.className='card';
+                el.innerHTML = `<h4 style="margin-bottom:6px">${d.title||'Untitled'}</h4><p class="small">${d.message||''}</p>`;
+                wrap.appendChild(el);
+              });
+            });
+          db.collection('blog_posts').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const grid = document.getElementById('blogListMeet'); if(!grid) return;
+              grid.innerHTML='';
+              if (snap.empty){ grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+              snap.forEach(doc=>{
+                const d=doc.data();
+                const el=document.createElement('div'); el.className='card';
+                const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
+                el.innerHTML = `
+                  <div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px">
+                    <img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95">
+                  </div>
+                  <h4 style="margin-bottom:6px">${d.title||'New Post'}</h4>
+                  <p class="small">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
+                `;
+                grid.appendChild(el);
+              });
+            });
+        }
+      }catch(e){ /* silent */ }
+    });
+  </script>
 
   <script>
     // Elements

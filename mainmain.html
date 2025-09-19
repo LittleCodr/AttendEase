@@ -206,10 +206,10 @@
     </div>
   </section>
 
-  <!-- Admin Publisher (visible only for admin role) -->
+  <!-- Publisher (visible when signed in) -->
   <section id="adminPublisher" class="about reveal" style="display:none">
-    <h2>Admin Publisher</h2>
-    <p style="color:#cbd5e1;margin-top:6px">Create announcements and blog posts directly from here.</p>
+    <h2>Publisher</h2>
+    <p style="color:#cbd5e1;margin-top:6px">Create announcements and blog posts directly from here (available to any signed-in user).</p>
     <div class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:12px">
       <div class="card">
         <h3 style="margin-bottom:8px">New Announcement</h3>
@@ -667,60 +667,192 @@
       }
     }
     // Attach auth state once Firebase has loaded and toggle admin tools
+    let CURRENT_USER = null;
+    let CURRENT_ROLE = 'student';
     async function onAuthChanged(user){
       setAuthUI(user);
+      CURRENT_USER = user || null;
       try{
         const panel = document.getElementById('adminPublisher');
-        if(!panel || !window.db || !user){ panel && (panel.style.display='none'); return; }
-        const snap = await db.collection('users').doc(user.uid).get();
-        const role = snap.exists ? (snap.data().role || 'student') : 'student';
-        panel.style.display = role === 'admin' ? 'block' : 'none';
+        if(panel) panel.style.display = user ? 'block' : 'none';
+        // fetch role for permissions
+        if (user && window.db){
+          const snap = await db.collection('users').doc(user.uid).get();
+          CURRENT_ROLE = snap.exists ? (snap.data().role || 'student') : 'student';
+        } else {
+          CURRENT_ROLE = 'student';
+        }
       }catch(_){ /* silent */ }
     }
     if (window.auth) { window.auth.onAuthStateChanged(onAuthChanged); } else { setAuthUI(null); }
     window.addEventListener('load', () => { if (window.auth) window.auth.onAuthStateChanged(onAuthChanged); });
 
-    // Firestore-powered content (public reads recommended): announcements and blog
-    async function loadAnnouncements(){
-      try{
-        if(!window.db) return;
-        const wrap = document.getElementById('announcementsList'); if(!wrap) return;
-        const snap = await db.collection('public_announcements').orderBy('createdAt','desc').limit(6).get();
-        if (snap.empty) { wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
-        wrap.innerHTML = '';
-        snap.forEach(doc=>{
-          const d = doc.data();
-          const el = document.createElement('div'); el.className='card';
-          el.innerHTML = `<h3 style="margin-bottom:6px">${d.title||'Untitled'}</h3><p class="feature-desc">${d.message||''}</p>`;
-          wrap.appendChild(el);
-        });
-      }catch(e){ /* silent */ }
+    // Firestore-powered content (public reads): realtime listeners
+    function startAnnouncementsListener(){
+      if(!window.db) return;
+      const wrap = document.getElementById('announcementsList'); if(!wrap) return;
+      return db.collection('public_announcements').orderBy('createdAt','desc').limit(12)
+        .onSnapshot((snap)=>{
+          wrap.innerHTML = '';
+          if (snap.empty) { wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+          snap.forEach(doc=>{
+            const d = doc.data();
+            const by = d.authorName || d.authorEmail || '';
+            const el = document.createElement('div'); el.className='card';
+            el.innerHTML = `<h3 style="margin-bottom:6px">${d.title||'Untitled'}</h3>
+                            <p class="feature-desc">${d.message||''}</p>
+                            <div class="small" style="opacity:.8;margin-top:6px">${by?('By '+by):''}</div>`;
+            wrap.appendChild(el);
+          });
+        }, ()=>{ /* silent */ });
     }
 
-    async function loadBlog(){
-      try{
-        if(!window.db) return;
-        const grid = document.getElementById('blogGrid'); if(!grid) return;
-        const snap = await db.collection('blog_posts').orderBy('createdAt','desc').limit(6).get();
-        if (snap.empty) { grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
-        grid.innerHTML = '';
-        snap.forEach(doc=>{
-          const d = doc.data();
-          const el = document.createElement('div'); el.className='blog-card card';
-          const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
-          el.innerHTML = `
-            <div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px">
-              <img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95">
-            </div>
-            <h3 style="margin-bottom:6px">${d.title||'New Post'}</h3>
-            <p class="feature-desc">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
-          `;
-          grid.appendChild(el);
-        });
-      }catch(e){ /* silent */ }
+    function canManagePost(data){
+      if (!CURRENT_USER) return false;
+      if (data && data.authorUid && data.authorUid === CURRENT_USER.uid) return true;
+      return CURRENT_ROLE === 'admin';
     }
 
-    window.addEventListener('load', ()=>{ loadAnnouncements(); loadBlog(); });
+    function startBlogListener(){
+      if(!window.db) return;
+      const grid = document.getElementById('blogGrid'); if(!grid) return;
+      return db.collection('blog_posts').orderBy('createdAt','desc').limit(12)
+        .onSnapshot((snap)=>{
+          grid.innerHTML = '';
+          if (snap.empty) { grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+          snap.forEach(doc=>{
+            const d = doc.data();
+            const img = d.image || 'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop';
+            const by = d.authorName || d.authorEmail || '';
+            const el = document.createElement('div'); el.className='blog-card card';
+            const manage = canManagePost(d);
+            el.setAttribute('data-post-id', doc.id);
+            el.innerHTML = `
+              <div style="overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px">
+                <img src="${img}" alt="${d.title||'Post'}" style="width:100%;display:block;opacity:.95">
+              </div>
+              <h3 style="margin-bottom:6px">${d.title||'New Post'}</h3>
+              <p class="feature-desc">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>
+              <div class="small" style="opacity:.8;margin-top:6px">${by?('By '+by):''}</div>
+              <div class="post-actions" style="display:flex;gap:8px;align-items:center;margin-top:10px">
+                <button class="btn btn-secondary btn-like" style="padding:8px 12px">❤️ Like <span class="like-count">0</span></button>
+                ${manage ? '<button class="btn btn-secondary btn-edit" style="padding:8px 12px">Edit</button>' : ''}
+                ${manage ? '<button class="btn btn-secondary btn-delete" style="padding:8px 12px">Delete</button>' : ''}
+              </div>
+              <div class="comments" style="margin-top:10px">
+                <div class="small" style="opacity:.9;margin-bottom:6px">Comments</div>
+                <div class="comment-list" style="display:flex;flex-direction:column;gap:8px"></div>
+                <div class="comment-form" style="display:flex;gap:8px;margin-top:8px">
+                  <input class="comment-input" placeholder="Write a comment..." style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#fff">
+                  <button class="btn btn-primary btn-comment">Post</button>
+                </div>
+              </div>
+            `;
+            grid.appendChild(el);
+            setupBlogCardInteractions(el, doc.id, d);
+          });
+        }, ()=>{ /* silent */ });
+    }
+
+    function setupBlogCardInteractions(cardEl, postId, data){
+      // Likes count listener and toggle
+      const likeBtn = cardEl.querySelector('.btn-like');
+      const likeCountEl = cardEl.querySelector('.like-count');
+      let liked = false; let likeUnsub = null; let myLikeUnsub = null;
+
+      if (window.db){
+        likeUnsub = db.collection('blog_posts').doc(postId).collection('likes')
+          .onSnapshot(snap=>{ likeCountEl.textContent = String(snap.size || 0); });
+        if (CURRENT_USER){
+          myLikeUnsub = db.collection('blog_posts').doc(postId).collection('likes').doc(CURRENT_USER.uid)
+            .onSnapshot(s=>{ liked = s.exists; likeBtn.textContent = (liked? '💔 Unlike ' : '❤️ Like ') + likeCountEl.textContent; });
+        }
+      }
+      likeBtn?.addEventListener('click', async ()=>{
+        if (!CURRENT_USER) return showAlert('Sign in to like','error');
+        try{
+          const ref = db.collection('blog_posts').doc(postId).collection('likes').doc(CURRENT_USER.uid);
+          if (liked) { await ref.delete(); } else { await ref.set({ uid: CURRENT_USER.uid, at: firebase.firestore.FieldValue.serverTimestamp() }); }
+        }catch(e){ /* silent */ }
+      });
+
+      // Comments listener and add
+      const list = cardEl.querySelector('.comment-list');
+      const input = cardEl.querySelector('.comment-input');
+      const postBtn = cardEl.querySelector('.btn-comment');
+      let commentsUnsub = null;
+      if (window.db){
+        commentsUnsub = db.collection('blog_posts').doc(postId).collection('comments')
+          .orderBy('createdAt','desc').limit(10)
+          .onSnapshot(snap=>{
+            list.innerHTML='';
+            if (snap.empty){ list.innerHTML = '<div class="small" style="opacity:.7">No comments yet.</div>'; return; }
+            snap.forEach(doc=>{
+              const c = doc.data();
+              const item = document.createElement('div');
+              item.className = 'card';
+              item.style.padding = '10px';
+              item.innerHTML = `<div style="font-weight:600">${c.authorName || c.authorEmail || 'User'}</div><div class="small">${c.text||''}</div>`;
+              list.appendChild(item);
+            });
+          });
+      }
+      postBtn?.addEventListener('click', async ()=>{
+        if (!CURRENT_USER) return showAlert('Sign in to comment','error');
+        const text = (input.value || '').trim();
+        if (!text) return;
+        try{
+          await db.collection('blog_posts').doc(postId).collection('comments').add({
+            text,
+            authorUid: CURRENT_USER.uid,
+            authorName: CURRENT_USER.displayName || null,
+            authorEmail: CURRENT_USER.email || null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          input.value = '';
+        }catch(e){ /* silent */ }
+      });
+
+      // Edit/Delete if allowed
+      const editBtn = cardEl.querySelector('.btn-edit');
+      const deleteBtn = cardEl.querySelector('.btn-delete');
+      editBtn?.addEventListener('click', async ()=>{
+        if (!canManagePost(data)) return showAlert('Not allowed','error');
+        const newTitle = prompt('Edit title', data.title || '');
+        if (newTitle === null) return;
+        const newExcerpt = prompt('Edit excerpt', data.excerpt || '');
+        if (newExcerpt === null) return;
+        const newImage = prompt('Edit image URL (optional)', data.image || '');
+        try{
+          await db.collection('blog_posts').doc(postId).set({
+            title: newTitle.trim() || data.title || 'Untitled',
+            excerpt: newExcerpt.trim() || data.excerpt || '',
+            image: (newImage||'').trim() || null,
+          }, { merge:true });
+          showAlert('Updated');
+        }catch(e){ showAlert('Update failed','error'); }
+      });
+      deleteBtn?.addEventListener('click', async ()=>{
+        if (!canManagePost(data)) return showAlert('Not allowed','error');
+        if (!confirm('Delete this post?')) return;
+        try{ await db.collection('blog_posts').doc(postId).delete(); showAlert('Deleted'); }
+        catch(e){ showAlert('Delete failed','error'); }
+      });
+
+      // Cleanup on card removal
+      cardEl.addEventListener('DOMNodeRemoved', ()=>{
+        try{ likeUnsub && likeUnsub(); }catch(_){}
+        try{ myLikeUnsub && myLikeUnsub(); }catch(_){}
+        try{ commentsUnsub && commentsUnsub(); }catch(_){}
+      });
+    }
+
+    let unsubs=[];
+    window.addEventListener('load', ()=>{
+      const a = startAnnouncementsListener(); if (typeof a === 'function') unsubs.push(a);
+      const b = startBlogListener(); if (typeof b === 'function') unsubs.push(b);
+      window.addEventListener('beforeunload', ()=>{ unsubs.forEach(u=>{ try{u();}catch(_){} }); });
+    });
 
     // Admin publishing handlers
     document.getElementById('btnPublishAnn')?.addEventListener('click', async () => {
@@ -728,11 +860,16 @@
         const t = document.getElementById('annTitle').value.trim();
         const m = document.getElementById('annMessage').value.trim();
         if(!t||!m) return showAlert('Fill title and message','error');
+        const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
         await db.collection('public_announcements').add({
-          title:t, message:m, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          title:t,
+          message:m,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          authorUid: u?.uid || null,
+          authorName: u?.displayName || null,
+          authorEmail: u?.email || null
         });
         document.getElementById('annStatus').textContent = 'Published ✅';
-        loadAnnouncements();
       }catch(e){ showAlert(e.message||'Failed to publish announcement','error'); }
     });
 
@@ -742,11 +879,17 @@
         const x = document.getElementById('blogExcerpt').value.trim();
         const i = document.getElementById('blogImage').value.trim();
         if(!t||!x) return showAlert('Fill title and excerpt','error');
+        const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
         await db.collection('blog_posts').add({
-          title:t, excerpt:x, image:i||null, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          title:t,
+          excerpt:x,
+          image:i||null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          authorUid: u?.uid || null,
+          authorName: u?.displayName || null,
+          authorEmail: u?.email || null
         });
         document.getElementById('blogStatus').textContent = 'Published ✅';
-        loadBlog();
       }catch(e){ showAlert(e.message||'Failed to publish blog','error'); }
     });
   </script>

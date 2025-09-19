@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Teacher Dashboard</title>
+  <link rel="stylesheet" href="ui.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -81,9 +82,29 @@
       margin-bottom: 10px;
       color: #1e3a8a;
     }
+    /* Leave request card styles (match hm.html) */
+    .request-card{
+      background:#f9fafb;
+      color:#111827;
+      padding:15px;margin-top:10px;
+      border-left:5px solid #2563eb;
+      border-radius:5px;
+    }
+    .approved{border-left:5px solid #22c55e;background:#ecfdf5;}
+    .rejected{border-left:5px solid #ef4444;background:#fef2f2;}
+    .buttons{margin-top:10px;}
+    .approve-btn,.reject-btn{
+      border:none;padding:6px 12px;border-radius:5px;cursor:pointer;margin-right:5px;font-size:14px;
+    }
+    .approve-btn{background:#22c55e;color:#fff;}
+    .approve-btn:hover{background:#16a34a;}
+    .reject-btn{background:#ef4444;color:#fff;}
+    .reject-btn:hover{background:#b91c1c;}
   </style>
 </head>
 <body>
+
+  <div class="bg-blob" aria-hidden="true"></div>
 
   <!-- 🔹 Top Bar -->
   <div class="top-bar">
@@ -118,137 +139,237 @@
   <!-- 🔹 Summary -->
   <div class="summary-box" id="summary"></div>
 
+  <!-- 🔹 Leave Applications (Teacher/Admin moderation) -->
+  <section class="summary-box">
+    <h3>Leave Applications</h3>
+    <p id="roleInfo" class="small" style="margin-top:-6px;color:#555"></p>
+    <div id="leaveReqList"></div>
+  </section>
+
+  <!-- Firebase SDKs and shared scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+
+  <!-- Firestore-powered Announcements and Blog (public read) -->
+  <section class="container-glass" style="max-width:1200px;margin:20px auto;padding:16px;border-radius:16px">
+    <div class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:10px">
+      <div class="card">
+        <h3>Announcements</h3>
+        <div id="annListTeacher" class="features-container" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Latest from the Blog</h3>
+        <div id="blogListTeacher" class="blog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+
   <script>
-    // Dummy data for first time use
-    if (!localStorage.getItem("students")) {
-      const sample = [
-        { roll: "101", name: "Amit", attendance: 80, reward: null },
-        { roll: "102", name: "Priya", attendance: 95, reward: null },
-        { roll: "103", name: "Rohan", attendance: 60, reward: null }
-      ];
-      localStorage.setItem("students", JSON.stringify(sample));
-    }
+    // Students via Firestore with fallback to localStorage
+    let ALL_STUDENTS = [];
+    let unsubStudents = null;
+    
+    // Auth/Role & Leave Applications
+    let currentRole = null;
+    let currentUser = null;
+    let unsubLeaveApps = null;
 
-    function loadStudents(filter = null) {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let tableBody = document.querySelector("#studentTable tbody");
-      tableBody.innerHTML = "";
-
-      let filtered = students;
-      if (filter === "above75") filtered = students.filter(s => s.attendance >= 75);
-      if (filter === "below75") filtered = students.filter(s => s.attendance < 75);
-
-      filtered.forEach((stu) => {
-        let row = `<tr>
-          <td>${stu.roll}</td>
-          <td>${stu.name}</td>
-          <td>${stu.attendance}%</td>
-          <td>${stu.reward ? stu.reward : "—"}</td>
+    function renderStudents(students){
+      const tableBody = document.querySelector('#studentTable tbody');
+      tableBody.innerHTML = '';
+      students.forEach(stu => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${stu.roll}</td><td>${stu.name}</td><td>${stu.attendance}%</td><td>${stu.reward ? stu.reward : '—'}</td>
           <td>
             <button onclick="present('${stu.roll}')">Present</button>
             <button onclick="absent('${stu.roll}')">Absent</button>
             <button onclick="grantReward('${stu.roll}')">Grant Reward</button>
             <button onclick="removeReward('${stu.roll}')">Remove Reward</button>
-          </td>
-        </tr>`;
-        tableBody.innerHTML += row;
+          </td>`;
+        tableBody.appendChild(row);
       });
-
       showSummary(students);
     }
 
-    function searchStudent() {
-      let query = document.getElementById("searchInput").value.toLowerCase();
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let result = students.filter(s => s.roll.toLowerCase() === query || s.name.toLowerCase().includes(query));
-      let tableBody = document.querySelector("#studentTable tbody");
-      tableBody.innerHTML = "";
+    function subscribeStudents(){
+      try{
+        if(!window.db){ loadLocal(); return; }
+        unsubStudents && unsubStudents();
+        unsubStudents = db.collection('students').orderBy('roll')
+          .onSnapshot(snap=>{
+            ALL_STUDENTS = []; snap.forEach(d=> ALL_STUDENTS.push(d.data()));
+            if (!ALL_STUDENTS.length) loadLocal(); else renderStudents(ALL_STUDENTS);
+          }, _=> loadLocal());
+      }catch(_){ loadLocal(); }
+    }
 
-      result.forEach(stu => {
-        let row = `<tr>
-          <td>${stu.roll}</td>
-          <td>${stu.name}</td>
-          <td>${stu.attendance}%</td>
-          <td>${stu.reward ? stu.reward : "—"}</td>
-          <td>
-            <button onclick="present('${stu.roll}')">Present</button>
-            <button onclick="absent('${stu.roll}')">Absent</button>
-            <button onclick="grantReward('${stu.roll}')">Grant Reward</button>
-            <button onclick="removeReward('${stu.roll}')">Remove Reward</button>
-          </td>
-        </tr>`;
-        tableBody.innerHTML += row;
+    function loadLocal(){
+      if (!localStorage.getItem('students')){
+        const sample = [
+          { roll: '101', name: 'Amit', attendance: 80, reward: null },
+          { roll: '102', name: 'Priya', attendance: 95, reward: null },
+          { roll: '103', name: 'Rohan', attendance: 60, reward: null }
+        ];
+        localStorage.setItem('students', JSON.stringify(sample));
+      }
+      ALL_STUDENTS = JSON.parse(localStorage.getItem('students')) || [];
+      renderStudents(ALL_STUDENTS);
+    }
+
+    // Filters
+    function loadStudents(filter=null){
+      let list = [...ALL_STUDENTS];
+      if (filter==='above75') list = list.filter(s=> s.attendance >= 75);
+      if (filter==='below75') list = list.filter(s=> s.attendance < 75);
+      renderStudents(list);
+    }
+    function showAll(){ loadStudents(); }
+    function filterAbove75(){ loadStudents('above75'); }
+    function filterBelow75(){ loadStudents('below75'); }
+
+    // Search
+    function searchStudent(){
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const res = ALL_STUDENTS.filter(s => s.roll.toLowerCase() === q || (s.name||'').toLowerCase().includes(q));
+      renderStudents(res);
+    }
+
+    // Mutations: write to Firestore when available else localStorage
+    async function present(roll){ await adjustAttendance(roll, +1); }
+    async function absent(roll){ await adjustAttendance(roll, -1); }
+    async function grantReward(roll){ await setReward(roll, true); }
+    async function removeReward(roll){ await setReward(roll, false); }
+
+    async function adjustAttendance(roll, delta){
+      try{
+        const find = (arr)=> arr.find(s=> s.roll===roll);
+        if (window.db){
+          const ref = db.collection('students').doc(roll);
+          const snap = await ref.get();
+          const base = snap.exists ? snap.data() : (find(ALL_STUDENTS) || { roll, name:'Unknown', attendance:0, reward:null });
+          const next = Math.max(0, Math.min(100, (base.attendance||0) + delta));
+          await ref.set({ ...base, attendance: next }, { merge:true });
+        } else {
+          const list = JSON.parse(localStorage.getItem('students')) || [];
+          const s = find(list); if (s){ s.attendance = Math.max(0, Math.min(100, (s.attendance||0)+delta)); }
+          localStorage.setItem('students', JSON.stringify(list));
+          ALL_STUDENTS = list; renderStudents(ALL_STUDENTS);
+        }
+      }catch(_){ /* silent */ }
+    }
+
+    async function setReward(roll, grant){
+      const compute = (att)=> att>=98? '10 Extra Marks' : att>=90? '5 Extra Marks' : att>=80? '2 Extra Marks' : 'No Reward';
+      try{
+        if (window.db){
+          const ref = db.collection('students').doc(roll);
+          const snap = await ref.get();
+          const base = snap.exists ? snap.data() : { roll, name:'Unknown', attendance:0, reward:null };
+          const reward = grant ? compute(base.attendance||0) : null;
+          await ref.set({ ...base, reward }, { merge:true });
+        } else {
+          const list = JSON.parse(localStorage.getItem('students')) || [];
+          const s = list.find(x=>x.roll===roll);
+          if (s) s.reward = grant ? compute(s.attendance||0) : null;
+          localStorage.setItem('students', JSON.stringify(list));
+          ALL_STUDENTS = list; renderStudents(ALL_STUDENTS);
+        }
+      }catch(_){ /* silent */ }
+    }
+
+    // ===== Leave Applications (moderation UI) =====
+    function subscribeLeaveApplications(){
+      try{
+        if(!window.db) return;
+        unsubLeaveApps && unsubLeaveApps();
+        unsubLeaveApps = db.collection('leave_applications').orderBy('createdAt','desc')
+          .onSnapshot(snap=>{
+            const apps = [];
+            snap.forEach(doc => apps.push({ id: doc.id, ...doc.data() }));
+            renderLeaveApplications(apps);
+          });
+      }catch(e){ /* silent */ }
+    }
+
+    function renderLeaveApplications(apps){
+      const wrap = document.getElementById('leaveReqList');
+      if(!wrap) return;
+      wrap.innerHTML = '';
+      if (!apps || !apps.length){ wrap.innerHTML = '<div class="card">No leave applications yet.</div>'; return; }
+      apps.forEach(app => {
+        const card = document.createElement('div');
+        card.className = 'request-card';
+        if (app.status==='approved') card.classList.add('approved');
+        if (app.status==='rejected') card.classList.add('rejected');
+        const who = app.submittedByRole || 'user';
+        card.innerHTML = `<b>${app.name||'Unknown'}</b> (${who}) requested <b>${app.days||'?'}</b> day(s)<br>Reason: ${app.reason||''}<br>Status: <b>${app.status||'pending'}</b>`;
+
+        // Gate: teachers can act on student-submitted; admins can act on all
+        const canTeacherAct = (currentRole === 'teacher') && (who === 'student');
+        const canAdminAct = (currentRole === 'admin');
+        if ((app.status||'pending')==='pending' && (canTeacherAct || canAdminAct)){
+          const btns = document.createElement('div');
+          btns.className = 'buttons';
+          const approve = document.createElement('button');
+          approve.className = 'approve-btn';
+          approve.textContent = 'Approve';
+          approve.onclick = () => updateLeaveStatus(app.id, 'approved');
+          const reject = document.createElement('button');
+          reject.className = 'reject-btn';
+          reject.textContent = 'Reject';
+          reject.onclick = () => updateLeaveStatus(app.id, 'rejected');
+          btns.appendChild(approve); btns.appendChild(reject);
+          card.appendChild(btns);
+        }
+        wrap.appendChild(card);
       });
     }
 
-    function showAll() { loadStudents(); }
-    function filterAbove75() { loadStudents("above75"); }
-    function filterBelow75() { loadStudents("below75"); }
-
-    function grantReward(roll) {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let student = students.find(s => s.roll === roll);
-      if (student) {
-        if (student.attendance >= 98) student.reward = "10 Extra Marks";
-        else if (student.attendance >= 90) student.reward = "5 Extra Marks";
-        else if (student.attendance >= 80) student.reward = "2 Extra Marks";
-        else student.reward = "No Reward";
-      }
-      localStorage.setItem("students", JSON.stringify(students));
-      loadStudents();
+    async function updateLeaveStatus(id, status){
+      try{
+        await db.collection('leave_applications').doc(id).set({ status }, { merge: true });
+      }catch(e){ console.warn('Failed to update leave status', e); }
     }
 
-    function removeReward(roll) {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let student = students.find(s => s.roll === roll);
-      if (student) student.reward = null;
-      localStorage.setItem("students", JSON.stringify(students));
-      loadStudents();
-    }
+    // Realtime public feeds
+    window.addEventListener('load', ()=>{
+      subscribeStudents();
+      try{
+        if(window.db){
+          db.collection('public_announcements').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const wrap = document.getElementById('annListTeacher'); if(!wrap) return; wrap.innerHTML='';
+              if (snap.empty){ wrap.innerHTML = '<div class="card">No announcements yet.</div>'; return; }
+              snap.forEach(doc=>{ const d=doc.data(); const el=document.createElement('div'); el.className='card'; el.innerHTML = `<h4 style=\"margin-bottom:6px\">${d.title||'Untitled'}</h4><p class=\"small\">${d.message||''}</p>`; wrap.appendChild(el); });
+            });
+          db.collection('blog_posts').orderBy('createdAt','desc').limit(6)
+            .onSnapshot(snap=>{
+              const grid = document.getElementById('blogListTeacher'); if(!grid) return; grid.innerHTML='';
+              if (snap.empty){ grid.innerHTML = '<div class="card">No posts yet.</div>'; return; }
+              snap.forEach(doc=>{ const d=doc.data(); const el=document.createElement('div'); el.className='card'; const img=d.image||'https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1200&auto=format&fit=crop'; el.innerHTML = `<div style=\"overflow:hidden;border-radius:16px;margin:-6px -6px 10px -6px\"><img src=\"${img}\" alt=\"${d.title||'Post'}\" style=\"width:100%;display:block;opacity:.95\"></div><h4 style=\"margin-bottom:6px\">${d.title||'New Post'}</h4><p class=\"small\">${(d.excerpt||'').toString().slice(0,140)}${(d.excerpt||'').length>140?'…':''}</p>`; grid.appendChild(el); });
+            });
+        }
+      }catch(e){ /* silent */ }
 
-    // 🔹 Present Function
-    function present(roll) {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let student = students.find(s => s.roll === roll);
-      if (student) {
-        student.attendance = Math.min(100, student.attendance + 1); // increase attendance
-      }
-      localStorage.setItem("students", JSON.stringify(students));
-      loadStudents();
-    }
-
-    // 🔹 Absent Function
-    function absent(roll) {
-      let students = JSON.parse(localStorage.getItem("students")) || [];
-      let student = students.find(s => s.roll === roll);
-      if (student) {
-        student.attendance = Math.max(0, student.attendance - 1); // decrease attendance
-      }
-      localStorage.setItem("students", JSON.stringify(students));
-      loadStudents();
-    }
-
-    function showSummary(students) {
-      if (students.length === 0) {
-        document.getElementById("summary").innerHTML = "<p>No data available.</p>";
-        return;
-      }
-
-      let max = Math.max(...students.map(s => s.attendance));
-      let min = Math.min(...students.map(s => s.attendance));
-
-      let toppers = students.filter(s => s.attendance === max);
-      let lowest = students.filter(s => s.attendance === min);
-
-      let summaryHtml = "<h3>📊 Summary</h3>";
-      summaryHtml += `<p><b>Highest Attendance (${max}%):</b> ${toppers.map(s => s.name + " (" + s.roll + ")").join(", ")}</p>`;
-      summaryHtml += `<p><b>Lowest Attendance (${min}%):</b> ${lowest.map(s => s.name + " (" + s.roll + ")").join(", ")}</p>`;
-
-      document.getElementById("summary").innerHTML = summaryHtml;
-    }
-
-    // load on start
-    loadStudents();
+      // Require auth to fetch role and then subscribe to leave apps
+      try{
+        if (window.requireAuth){
+          requireAuth(async (user)=>{
+            currentUser = user;
+            try{
+              const snap = await db.collection('users').doc(user.uid).get();
+              currentRole = snap.exists ? (snap.data().role || null) : null;
+            }catch(_){ currentRole = null; }
+            const roleInfo = document.getElementById('roleInfo');
+            if (roleInfo) roleInfo.textContent = 'Signed in as: ' + ((currentRole||'user').toUpperCase());
+            subscribeLeaveApplications();
+          });
+        }
+      }catch(_){ /* silent */ }
+    });
   </script>
 
 </body>
